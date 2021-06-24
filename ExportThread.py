@@ -5,9 +5,9 @@ import adsk.core, adsk.fusion, adsk.cam, traceback
 import cmath, math
 import sys
 
-# import subprocess
-# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
-# import numpy as np
+#import subprocess
+#subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
+#import numpy as np
 
 
 import inspect
@@ -31,7 +31,7 @@ ui = adsk.core.UserInterface.cast(None)
 handlers = []
 selectedLines = []
 
-gcodePath = "/Users/bcv151/Documents/Work/202109 Thread/Thread coordination file/threadCoordinates.txt"
+gcodePath = os.path.abspath(__file__) + "threadCoordinates.txt"
 
 def run(context):
     global app, ui
@@ -171,7 +171,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         lines = np.zeros(shape=(len(selectedLines), 2, 3))
         #lines = createZeroMatrix(len(selectedLines), 2, 3)
-        ui.messageBox(str(lines))
+        #ui.messageBox(str(lines))
         try:
             f = open(gcodePath, "w")
             #TODO: check connectivity and Eulerian trail from (0,0,0)
@@ -193,11 +193,15 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
 
 
             # Order lines from the origin
-            ui.messageBox(str(lines[:,:,0]))
 
             tmpIndex = ((lines[:,:,0] == 0) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0)).nonzero()  #TODO: Handle cases where there are more than one [0,0,0] or no [0,0,0]. tmpIndex should be 1d array, e.g., [1,1]
-            #ui.messageBox(str(lines))
-            #ui.messageBox(str(tmpIndex))
+            #tmpIndex = np.where((lines == (0,0,0)).all(axis=2).nonzero())
+            # ui.messageBox("tmpIndex: (0,0,0)\n"+str(lines == (0,0,0)))
+            # ui.messageBox("tmpIndex: nonzero\n"+str((lines == (0,0,0)).all(axis=2).nonzero()))
+            # ui.messageBox("tmpIndex: where\n"+str(np.where((lines[:,:,0] == 0) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0))[0]))
+            # ui.messageBox(gcodePath)
+            # ui.messageBox("lines: "+str(lines))
+            # ui.messageBox("tmpIndex: "+str(tmpIndex))
             lines[[tmpIndex[0][0], 0]] = lines[[0, tmpIndex[0][0]]]     # Move [0,0,0] to the first row
             lines[0, [0, tmpIndex[1][0]]] = lines[0, [tmpIndex[1][0], 0]]          # Move [0,0,0] to the first column
             #ui.messageBox(str(lines))
@@ -206,6 +210,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
                 #ui.messageBox("Iteration {}:\n{}".format(i, str(tmpIndex)))
 
                 if i < len(lines) - 1:
+                    ui.messageBox(str(lines[[tmpIndex[0][0], i]]))
                     lines[[tmpIndex[0][0], i]] = lines[[i, tmpIndex[0][0]]]     # Move the line to the current row
                 lines[i, [0, tmpIndex[1][0]]] = lines[i, [tmpIndex[1][0], 0]]                         # Move the point of the line that is connected to the previous line to the first column
                 #ui.messageBox("Iteration {}:\n{}".format(i, str(lines)))
