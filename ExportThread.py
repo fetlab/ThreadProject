@@ -9,7 +9,6 @@ import sys
 #subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
 #import numpy as np
 
-
 import inspect
 import os
 import sys
@@ -31,7 +30,9 @@ ui = adsk.core.UserInterface.cast(None)
 handlers = []
 selectedLines = []
 
-gcodePath = os.path.abspath(__file__) + "threadCoordinates.txt"
+pathGcode = os.path.abspath(__file__) + "threadCoordinates.txt"
+pathSlic3r = "C:\Program Files\Slic3r-1.3.0.64bit\Slic3r-console"
+
 
 def run(context):
     global app, ui
@@ -173,7 +174,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
         #lines = createZeroMatrix(len(selectedLines), 2, 3)
         #ui.messageBox(str(lines))
         try:
-            f = open(gcodePath, "w")
+            f = open(pathGcode, "w")
             #TODO: check connectivity and Eulerian trail from (0,0,0)
             for i in range(0, len(selectedLines)):
                 if selectedLines[i].classType() == "adsk::fusion::BRepEdge":
