@@ -5,9 +5,10 @@ import adsk.core, adsk.fusion, adsk.cam, traceback
 import cmath, math
 import sys
 
-#import subprocess
-#subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
-#import numpy as np
+# Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
+# import subprocess
+# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
+# import numpy as np
 
 import inspect
 import os
