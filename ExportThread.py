@@ -32,7 +32,8 @@ handlers = []
 selectedLines = []
 
 pathGcode = os.path.abspath(__file__) + "threadCoordinates.txt"
-pathSlic3r = "C:\Program Files\Slic3r-1.3.0.64bit\Slic3r-console"
+pathSlic3r = "C:\Program Files\Slic3r\Slic3r-console"
+
 
 
 def run(context):
@@ -464,7 +465,7 @@ class MyUnSelectHandler(adsk.core.SelectionEventHandler):
         try:
             selectedEdge = adsk.fusion.BRepEdge.cast(args.selection.entity) 
             if selectedEdge:
-                selectedLines.append(selectedEdge)
+                selectedLines.remove(selectedEdge)
         except:
             if ui:
                 ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
