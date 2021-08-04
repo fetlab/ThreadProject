@@ -8,6 +8,11 @@ import sys
 import inspect
 import os
 
+# Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
+# import subprocess
+# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
+# import numpy as np
+
 script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
 script_name = os.path.splitext(os.path.basename(script_path))[0]
 script_dir = os.path.dirname(script_path)
@@ -31,11 +36,11 @@ _selectedAnchors = []
 _filePath = "C:\Program Files\Slic3r"
 _slic3rPath = "C:\Program Files\Slic3r\\"
 
+# Print settings
+_layerHeight = 0.2
 
-# Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
-# import subprocess
-# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
-# import numpy as np
+# To combine three g-code files
+_threadZPoints = [0.0]
 
 
 def run(context):
@@ -232,6 +237,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
             exportBody()
             exportAnchor()
 
+            combineGCodeFiles()
 
         except:
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -277,10 +283,16 @@ def exportThread():
     f.write(str(lines))
     #ui.messageBox(str(lines))
 
-    #TODO: convert geometry to g-code
     #TODO: Select connected lines at once
     #TODO: Check line connectivity
 
+    # Get Z positions of end points of thread. Ignore Z=0
+    for line in lines:
+        for endPoint in line:
+            if endPoint[2] != 0 and endPoint[2] != _threadZPoints[-1]: #TODO: Handle a case then thread goes down.
+                _threadZPoints.append(endPoint[2])
+
+    f.write('\n'+str(_threadZPoints))
 
     ##############################
     # 2. Conver thread geometry to g-code
@@ -472,8 +484,10 @@ def exportAnchor():
 
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
         _filePath + "/allAnchors.stl",
-        "--first-layer-height","0.2",
-        "--layer-height","0.2",
+        # "--first-layer-height","0.2",
+        # "--layer-height","0.2",
+        "--first-layer-height", str(_layerHeight),
+        "--layer-height",str(_layerHeight),
         "--filament-diameter","1.75",
         "--nozzle-diameter","0.4",
         "--print-center","39.5,110",        #TODO Currently set for 79 x 235 mm.
@@ -483,6 +497,17 @@ def exportAnchor():
         if _ui:
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
+
+def combineGCodeFiles():
+    try:
+        fBody = open(_filePath +"/output-body.gcode", "r")
+        fAnchor = open(_filePath +"/output-anchor.gcode", "r")
+
+        #TODO: Start from here.
+
+    except:
+    if _ui:
+        _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
 class MyCommandDestroyHandler(adsk.core.CommandEventHandler):
