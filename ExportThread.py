@@ -8,10 +8,10 @@ import sys
 import inspect
 import os
 
-# Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
-# import subprocess
-# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
-# import numpy as np
+#Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
+import subprocess
+subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
+import numpy as np
 
 script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
 script_name = os.path.splitext(os.path.basename(script_path))[0]
@@ -38,6 +38,10 @@ _slic3rPath = "C:\Program Files\Slic3r\\"
 
 # Print settings
 _layerHeight = 0.2
+_bedSizeX = 79        ##TODO Currently set for 79 x 235 mm.
+_bedSizeOriginalX = 235
+_threadOriginX = -(_bedSizeOriginalX/2 - _bedSizeX/2)
+_bedSizeY = 235
 
 # To combine three g-code files
 _threadZPoints = [0.0]
@@ -55,11 +59,24 @@ def run(context):
         if not cmdDef:
             cmdDef = _ui.commandDefinitions.addButtonDefinition('rhapso','Rhapso','User interface for Thread-embedding 3D Printer')
 
+        # # Connect to the command destroyed event.
+        # onDestroy = MyCommandDestroyHandler()
+        # cmdDef.destroy.add(onDestroy)
+        # _handlers.append(onDestroy)
+
+        # # Connect to the input changed event.           
+        # onInputChanged = MyCommandInputChangedHandler()
+        # cmdDef.inputChanged.add(onInputChanged)
+        # _handlers.append(onInputChanged)    
+
         # Connect to the command created event.
         onCommandCreated = MyCommandCreatedHandler()
         cmdDef.commandCreated.add(onCommandCreated)
         _handlers.append(onCommandCreated)
 
+        # Create print bed body.
+        createPrintBedAndThreadOriginBodies()
+        
         # Execue the command definition.
         cmdDef.execute()
         
@@ -71,12 +88,61 @@ def run(context):
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
+def createPrintBedAndThreadOriginBodies():
+    try:
+        design = adsk.fusion.Design.cast(_app.activeProduct)
+        root = design.rootComponent
+        
+        ### 1. Check if there is a body called "PrintBed".
+        bodyPrintBed = root.bRepBodies.itemByName("PrintBed")
+
+        if bodyPrintBed is None:
+            ### 2. Draw sketch lines, path.
+            sketches = root.sketches
+            sketch = sketches.add(root.xYConstructionPlane)
+            lines = sketch.sketchCurves.sketchLines
+            recLines = lines.addTwoPointRectangle(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(_bedSizeX/10, _bedSizeY/10, 0))
+
+            ### 3. Extrude
+            extrudes = root.features.extrudeFeatures
+            prof = sketch.profiles.item(0)
+            distance = adsk.core.ValueInput.createByReal(-0.5)
+            extrude = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+            ### 4. Get the print bed body
+            body = extrude.bodies.item(0)
+            body.name = "PrintBed"
+
+        #######################################
+        ### Do the same with the starting point of thread
+        ### 1. Check if there is a body called "ThreadStartingPoint"
+        bodyThreadPoint = root.bRepBodies.itemByName("ThreadStartingPoint")
+
+        if bodyThreadPoint is None:
+            ### 2. Draw sketch lines, path.
+            sketches = root.sketches
+            sketch = sketches.add(root.xYConstructionPlane)
+            lines = sketch.sketchCurves.sketchLines
+            recLines = lines.addTwoPointRectangle(adsk.core.Point3D.create(_threadOriginX/10, 0, 0), adsk.core.Point3D.create(_threadOriginX/10-0.5, -0.5, 0))
+
+            ### 3. Extrude
+            extrudes = root.features.extrudeFeatures
+            prof = sketch.profiles.item(0)
+            distance = adsk.core.ValueInput.createByReal(-0.5)
+            extrude = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+            ### 4. Get the print bed body
+            body = extrude.bodies.item(0)
+            body.name = "ThreadStartingPoint"
+
+    except:
+        if _ui:
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+
 # From https://forums.autodesk.com/t5/fusion-360-api-and-scripts/python-api-export-stl-from-brepbody-fails/td-p/6299830
 def exportCompBodyAsSTL():
-    app = adsk.core.Application.get()
-    ui = app.userInterface
     try:
-        product = app.activeProduct
+        product = _app.activeProduct
         design = adsk.fusion.Design.cast(product)
         root = design.rootComponent
         exportMgr = design.exportManager
@@ -104,8 +170,8 @@ def exportCompBodyAsSTL():
                 exportMgr.execute(stlExportOptions)
 
     except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        if _ui:
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
 
@@ -140,7 +206,7 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             # Thread selector
             threadInput = _inputs.addSelectionInput('selThread', 'Select Threads', 'Select edges and sketchlines to export as thread')
-            threadInput.addSelectionFilter(adsk.core.SelectionCommandInput.Edges)
+            #threadInput.addSelectionFilter(adsk.core.SelectionCommandInput.Edges)
             threadInput.addSelectionFilter(adsk.core.SelectionCommandInput.SketchCurves)
             threadInput.setSelectionLimits(1)
 
@@ -164,33 +230,33 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-#TODO: Remove this class?
-class MyCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
-    def __init__(self):
-        super().__init__()
-    def notify(self, args):
-        try:
-            app = adsk.core.Application.get()
-            design = adsk.fusion.Design.cast(app.activeProduct)
-            if design:
-                cggroup = design.rootComponent.customGraphicsGroups.add()
-                for i in range(0, len(_selectedLines)):
-                    if _selectedLines[i].classType() == "adsk::fusion::BRepEdge":
-                        edge = adsk.fusion.BRepEdge.cast(_selectedLines[i]) 
-                        startPoint = edge.startVertex.geometry   # Point3D type
-                        endPoint = edge.endVertex.geometry
-                    else:
-                        edge = adsk.fusion.SketchLine.cast(_selectedLines[i]) # "adsk::fusion::SketchLine"
-                        startPoint = edge.worldGeometry.startPoint
-                        endPoint = edge.worldGeometry.endPoint
+# #TODO: Remove this class?
+# class MyCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
+#     def __init__(self):
+#         super().__init__()
+#     def notify(self, args):
+#         try:
+#             app = adsk.core.Application.get()
+#             design = adsk.fusion.Design.cast(app.activeProduct)
+#             if design:
+#                 cggroup = design.rootComponent.customGraphicsGroups.add()
+#                 for i in range(0, len(_selectedLines)):
+#                     if _selectedLines[i].classType() == "adsk::fusion::BRepEdge":
+#                         edge = adsk.fusion.BRepEdge.cast(_selectedLines[i]) 
+#                         startPoint = edge.startVertex.geometry   # Point3D type
+#                         endPoint = edge.endVertex.geometry
+#                     else:
+#                         edge = adsk.fusion.SketchLine.cast(_selectedLines[i]) # "adsk::fusion::SketchLine"
+#                         startPoint = edge.worldGeometry.startPoint
+#                         endPoint = edge.worldGeometry.endPoint
                     
-                    #ui.messageBox('(({},{},{}),({},{},{}))'.format(startPoint.x*10, startPoint.y*10, startPoint.z*10, endPoint.x*10, endPoint.y*10, endPoint.z*10))
+#                     #ui.messageBox('(({},{},{}),({},{},{}))'.format(startPoint.x*10, startPoint.y*10, startPoint.z*10, endPoint.x*10, endPoint.y*10, endPoint.z*10))
                     
-        #HK: Not sure what should be done here for bodies. Leave it for now.
+#         #HK: Not sure what should be done here for bodies. Leave it for now.
                     
-        except:
-            if _ui:
-                _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))       
+#         except:
+#             if _ui:
+#                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))       
 
 
 def createZeroMatrix(l, r, c):
@@ -264,14 +330,25 @@ def exportThread():
 
 
     ##############################
-    # 1. Order lines from the origin
+    ### 1. Order lines from the origin
 
-    tmpIndex = ((lines[:,:,0] == 0) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0)).nonzero()  #TODO: Handle cases where there are more than one [0,0,0] or no [0,0,0]. tmpIndex should be 1d array, e.g., [1,1]
+    tmpIndex = np.where((lines[:,:,0] == _threadOriginX) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0))
+    _ui.messageBox(str(tmpIndex))
 
-    lines[[tmpIndex[0][0], 0]] = lines[[0, tmpIndex[0][0]]]     # Move [0,0,0] to the first row
-    lines[0, [0, tmpIndex[1][0]]] = lines[0, [tmpIndex[1][0], 0]]          # Move [0,0,0] to the first column
+    # tmpIndex = ((lines[:,:,0] == _threadOriginX) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0)).nonzero()  #TODO: Handle cases where there are more than one origin [_threadOriginX,0,0] or no origin. 
+
+    lines[[tmpIndex[0][0], 0]] = lines[[0, tmpIndex[0][0]]]     # Move origin to the first row
+    lines[0, [0, tmpIndex[1][0]]] = lines[0, [tmpIndex[1][0], 0]]          # Move origin to the first column
+    _ui.messageBox(str(lines))
+
+    # Sort lines from the origin.
     for i in range(1, len(lines)):
-        tmpIndex = ((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2])).nonzero()  # Find a line connected to the previous line
+        _ui.messageBox(str(lines[i-1, 1]))
+        _ui.messageBox(str(lines[i:]))
+
+        tmpIndex = np.where((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2]))
+        #tmpIndex = ((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2])).nonzero()  # Find a line connected to the previous line
+        _ui.messageBox(str(tmpIndex))
 
         if i < len(lines) - 1:
             _ui.messageBox(str(lines[[tmpIndex[0][0], i]]))
@@ -294,8 +371,7 @@ def exportThread():
 
     f.write('\n'+str(_threadZPoints))
 
-    ##############################
-    # 2. Conver thread geometry to g-code
+    ### 2. Conver thread geometry to g-code
 
     h = 117.5 # Center point of the ring in mm
     r = 100 # Radius of the ring in mm
@@ -439,11 +515,11 @@ def exportBody():
 
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
         _filePath + "/allBodies.stl",
-        "--first-layer-height","0.2",
-        "--layer-height","0.2",
+        "--first-layer-height", str(_layerHeight),
+        "--layer-height",str(_layerHeight),
         "--filament-diameter","1.75",
         "--nozzle-diameter","0.4",
-        "--print-center","39.5,110",        #TODO Currently set for 79 x 235 mm.
+        "--dont-arrange",
         "-o", _filePath + "/output-body.gcode"]) 
 
     except:
@@ -484,13 +560,11 @@ def exportAnchor():
 
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
         _filePath + "/allAnchors.stl",
-        # "--first-layer-height","0.2",
-        # "--layer-height","0.2",
         "--first-layer-height", str(_layerHeight),
         "--layer-height",str(_layerHeight),
         "--filament-diameter","1.75",
         "--nozzle-diameter","0.4",
-        "--print-center","39.5,110",        #TODO Currently set for 79 x 235 mm.
+        "--dont-arrange",
         "-o", _filePath + "/output-anchor.gcode"]) 
 
     except:
@@ -502,12 +576,18 @@ def combineGCodeFiles():
     try:
         fBody = open(_filePath +"/output-body.gcode", "r")
         fAnchor = open(_filePath +"/output-anchor.gcode", "r")
+        fAll = open(_filePath +"/output-all.gcode", "w")
+
+        linesBody = fBody.readlines()
+        linesAnchor = fAnchor.readlines()
 
         #TODO: Start from here.
 
+
     except:
-    if _ui:
-        _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        if _ui:
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+
 
 
 class MyCommandDestroyHandler(adsk.core.CommandEventHandler):
