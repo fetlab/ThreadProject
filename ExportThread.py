@@ -9,9 +9,9 @@ import inspect
 import os
 
 #Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
-import subprocess
-subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
-import numpy as np
+# import subprocess
+# subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
+# import numpy as np
 
 script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
 script_name = os.path.splitext(os.path.basename(script_path))[0]
@@ -37,14 +37,19 @@ _filePath = "C:\Program Files\Slic3r"
 _slic3rPath = "C:\Program Files\Slic3r\\"
 
 # Print settings
-_layerHeight = 0.2
+_layerThickness = 0.2
 _bedSizeX = 79        ##TODO Currently set for 79 x 235 mm.
 _bedSizeOriginalX = 235
 _threadOriginX = -(_bedSizeOriginalX/2 - _bedSizeX/2)
 _bedSizeY = 235
+_temperature = 200
+_bedTemperature = 60
 
 # To combine three g-code files
 _threadZPoints = [0.0]
+
+# Thread coordinates
+_lines = []
 
 
 def run(context):
@@ -213,7 +218,8 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Print body selector
             modelInput = _inputs.addSelectionInput('selBody', 'Select 3D Models', 'Select bodies to 3D print')
             modelInput.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies) # Ref https://help.autodesk.com/view/fusion360/ENU/?guid=GUID-03033DE6-AD8E-46B3-B4E6-DADA8D389E4E
-            modelInput.setSelectionLimits(1)
+            #modelInput.setSelectionLimits(1)
+            modelInput.setSelectionLimits(0)
 
             # Anchor body selector
             modelInput = _inputs.addSelectionInput('selAnchor', 'Select Anchors', 'Select bodies to to anchor thread')
@@ -259,18 +265,18 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 #                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))       
 
 
-def createZeroMatrix(l, r, c):
-    mat = []
-    for i in range(l):
-        layerList = []
-        for j in range(r):
-            rowList = []
-            for k in range(c):
-                rowList.append(0)
-            layerList.append(rowList)
-        mat.append(layerList)
+# def createZeroMatrix(l, r, c):
+#     mat = []
+#     for i in range(l):
+#         layerList = []
+#         for j in range(r):
+#             rowList = []
+#             for k in range(c):
+#                 rowList.append(0)
+#             layerList.append(rowList)
+#         mat.append(layerList)
         
-    return mat
+#     return mat
 
 
 class MyExecuteHandler(adsk.core.CommandEventHandler):
@@ -310,176 +316,179 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
 
 
 def exportThread():
-    lines = np.zeros(shape=(len(_selectedLines), 2, 3))
-    #lines = createZeroMatrix(len(selectedLines), 2, 3)
-    #ui.messageBox(str(lines))
-    f = open(_filePath +"\output-thread.txt", "w")
-    #TODO: check connectivity and Eulerian trail from (0,0,0)
-    for i in range(0, len(_selectedLines)):
-        if _selectedLines[i].classType() == "adsk::fusion::BRepEdge":
-            edge = adsk.fusion.BRepEdge.cast(_selectedLines[i]) 
-            startPoint = edge.startVertex.geometry   # Point3D type
-            endPoint = edge.endVertex.geometry
-        else:
-            edge = adsk.fusion.SketchLine.cast(_selectedLines[i]) # "adsk::fusion::SketchLine"
-            startPoint = edge.worldGeometry.startPoint
-            endPoint = edge.worldGeometry.endPoint
-    
-        lines[i][0] = [startPoint.x*10, startPoint.y*10, startPoint.z*10]
-        lines[i][1] = [endPoint.x*10, endPoint.y*10, endPoint.z*10]
+    try:
+        global _lines
 
-
-    ##############################
-    ### 1. Order lines from the origin
-
-    tmpIndex = np.where((lines[:,:,0] == _threadOriginX) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0))
-    _ui.messageBox(str(tmpIndex))
-
-    # tmpIndex = ((lines[:,:,0] == _threadOriginX) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0)).nonzero()  #TODO: Handle cases where there are more than one origin [_threadOriginX,0,0] or no origin. 
-
-    lines[[tmpIndex[0][0], 0]] = lines[[0, tmpIndex[0][0]]]     # Move origin to the first row
-    lines[0, [0, tmpIndex[1][0]]] = lines[0, [tmpIndex[1][0], 0]]          # Move origin to the first column
-    _ui.messageBox(str(lines))
-
-    # Sort lines from the origin.
-    for i in range(1, len(lines)):
-        _ui.messageBox(str(lines[i-1, 1]))
-        _ui.messageBox(str(lines[i:]))
-
-        tmpIndex = np.where((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2]))
-        #tmpIndex = ((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2])).nonzero()  # Find a line connected to the previous line
-        _ui.messageBox(str(tmpIndex))
-
-        if i < len(lines) - 1:
-            _ui.messageBox(str(lines[[tmpIndex[0][0], i]]))
-            lines[[tmpIndex[0][0], i]] = lines[[i, tmpIndex[0][0]]]     # Move the line to the current row
-        lines[i, [0, tmpIndex[1][0]]] = lines[i, [tmpIndex[1][0], 0]]                         # Move the point of the line that is connected to the previous line to the first column
-
-        # TODO: handle exception when the lines are not connected.
-    
-    f.write(str(lines))
-    #ui.messageBox(str(lines))
-
-    #TODO: Select connected lines at once
-    #TODO: Check line connectivity
-
-    # Get Z positions of end points of thread. Ignore Z=0
-    for line in lines:
-        for endPoint in line:
-            if endPoint[2] != 0 and endPoint[2] != _threadZPoints[-1]: #TODO: Handle a case then thread goes down.
-                _threadZPoints.append(endPoint[2])
-
-    f.write('\n'+str(_threadZPoints))
-
-    ### 2. Conver thread geometry to g-code
-
-    h = 117.5 # Center point of the ring in mm
-    r = 100 # Radius of the ring in mm
-    stepsPCircle = 142.5
-    theta = math.radians(-90)
-    
-    f.write('\n\nT1 ; change tool to Extruder 2\n')
-    f.write('G92 E0 ; set the current filament position to E2=0\n') # Assume 12 o'clock is E2=0
-
-    # 2.a Move bed at Y=0.
-    f.write('G0 Y0 ; Move bed to 0\n')
-
-    # 2.b project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
-    for i in range(0, len(lines)):
-        startPoint = lines[i][0]
-        endPoint = lines[i][1]
+        _lines = np.zeros(shape=(len(_selectedLines), 2, 3))
+        #lines = createZeroMatrix(len(selectedLines), 2, 3)
+        #ui.messageBox(str(lines))
+        f = open(_filePath +"\output-thread.gcode", "w")
+        #TODO: check connectivity and Eulerian trail from (0,0,0)
+        for i in range(0, len(_selectedLines)):
+            if _selectedLines[i].classType() == "adsk::fusion::BRepEdge":
+                edge = adsk.fusion.BRepEdge.cast(_selectedLines[i]) 
+                startPoint = edge.startVertex.geometry   # Point3D type
+                endPoint = edge.endVertex.geometry
+            else:
+                edge = adsk.fusion.SketchLine.cast(_selectedLines[i]) # "adsk::fusion::SketchLine"
+                startPoint = edge.worldGeometry.startPoint
+                endPoint = edge.worldGeometry.endPoint
         
-        x1 = startPoint[0]
-        y1 = startPoint[1]
-        z1 = startPoint[2]
-        x2 = endPoint[0]
-        y2 = endPoint[1]
-        z2 = endPoint[2]
+            _lines[i][0] = [round(startPoint.x*10, 4), round(startPoint.y*10, 4), round(startPoint.z*10, 4)]
+            _lines[i][1] = [round(endPoint.x*10, 4), round(endPoint.y*10, 4), round(endPoint.z*10, 4)]
 
-        if x2 != x1:
-            la = (y2-y1)/(x2-x1)     # a for linear formulat y = ax + b
-            lb = - la*x1 + y1         # b for linear formulat y = ax + b
-            qa = 1 + pow(la,2)        #a for quadratic formula    ax^2 + bx + c = 0
-            qb = 2*la*(lb-h) - 2*h    #b for quadratic formula    ax^2 + bx + c = 0
-            qc = pow(lb-h,2) + pow(h,2) - pow(r, 2)
-            spoolPoint1x = (-qb-cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa) 
-            spoolPoint1y = la*spoolPoint1x + lb
-            spoolPoint2x = (-qb+cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
-            spoolPoint2y = la*spoolPoint2x + lb
+
+        ##############################
+        ### 1. Order lines from the origin
+
+        tmpIndex = np.where((_lines[:,:,0] == _threadOriginX) & (_lines[:,:,1] == 0) & (_lines[:,:,2] == 0))
+        # tmpIndex = ((lines[:,:,0] == _threadOriginX) & (lines[:,:,1] == 0) & (lines[:,:,2] == 0)).nonzero()  #TODO: Handle cases where there are more than one origin [_threadOriginX,0,0] or no origin. 
+
+        _lines[[tmpIndex[0][0], 0]] = _lines[[0, tmpIndex[0][0]]]     # Move origin to the first row
+        _lines[0, [0, tmpIndex[1][0]]] = _lines[0, [tmpIndex[1][0], 0]]          # Move origin to the first column
+
+
+        # Sort lines from the origin.
+        for i in range(1, len(_lines)):
+            tmpIndex = np.where((_lines[i:,:,0] == _lines[i-1, 1, 0]) & (_lines[i:,:,1] == _lines[i-1, 1, 1]) & (_lines[i:,:,2] == _lines[i-1, 1, 2]))
+            # #tmpIndex = ((lines[i:,:,0] == lines[i-1, 1, 0]) & (lines[i:,:,1] == lines[i-1, 1, 1]) & (lines[i:,:,2] == lines[i-1, 1, 2])).nonzero()  # Find a line connected to the previous line
+            # _ui.messageBox(str(tmpIndex))
+
+            if i < len(_lines) - 1:
+                # _ui.messageBox(str(lines[[tmpIndex[0][0], i]]))
+                _lines[[tmpIndex[0][0], i]] = _lines[[i, tmpIndex[0][0]]]     # Move the line to the current row
+            _lines[i, [0, tmpIndex[1][0]]] = _lines[i, [tmpIndex[1][0], 0]]                         # Move the point of the line that is connected to the previous line to the first column
+
+            # TODO: handle exception when the lines are not connected.
+        
+        _lines[:,:,0] = _lines[:,:,0] - _threadOriginX
+
+        #f.write(str(_lines))
+        #ui.messageBox(str(lines))
+
+        #TODO: Select connected lines at once
+        #TODO: Check line connectivity
+
+        # Get Z positions of end points of thread. Ignore Z=0
+        for line in _lines:
+            for endPoint in line:
+                if endPoint[2] != 0 and endPoint[2] != _threadZPoints[-1]: #TODO: Handle a case then thread goes down.
+                    _threadZPoints.append(endPoint[2])
+
+        f.write('\n'+str(_threadZPoints))
+
+        ### 2. Conver thread geometry to g-code
+
+        h = 117.5 # Center point of the ring in mm
+        r = 100 # Radius of the ring in mm
+        stepsPCircle = 142.5
+        theta = math.radians(-90)
+        
+        f.write('\n\nT1 ; change tool to Extruder 2\n')
+        f.write('G92 E0 ; set the current filament position to E2=0\n') # Assume 12 o'clock is E2=0
+
+        # 2.a Move bed at Y=0.
+        f.write('G0 Y0 ; Move bed to 0\n')
+
+        # 2.b project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
+        for i in range(0, len(_lines)):
+            startPoint = _lines[i][0]
+            endPoint = _lines[i][1]
             
-        else:                  
-            qa = 1               # linear formula x = x1
-            qb = - 2 * h
-            qc = pow(h, 2) + pow (x1 - h, 2) - pow(r, 2)
-            spoolPoint1y = (-qb-cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
-            spoolPoint1x = x1
-            spoolPoint2y = (-qb+cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
-            spoolPoint2x = x1
+            x1 = startPoint[0]
+            y1 = startPoint[1]
+            z1 = startPoint[2]
+            x2 = endPoint[0]
+            y2 = endPoint[1]
+            z2 = endPoint[2]
+
+            if x2 != x1:
+                la = (y2-y1)/(x2-x1)     # a for linear formulat y = ax + b
+                lb = - la*x1 + y1         # b for linear formulat y = ax + b
+                qa = 1 + pow(la,2)        #a for quadratic formula    ax^2 + bx + c = 0
+                qb = 2*la*(lb-h) - 2*h    #b for quadratic formula    ax^2 + bx + c = 0
+                qc = pow(lb-h,2) + pow(h,2) - pow(r, 2)
+                spoolPoint1x = (-qb-cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa) 
+                spoolPoint1y = la*spoolPoint1x + lb
+                spoolPoint2x = (-qb+cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
+                spoolPoint2y = la*spoolPoint2x + lb
+                
+            else:                  
+                qa = 1               # linear formula x = x1
+                qb = - 2 * h
+                qc = pow(h, 2) + pow (x1 - h, 2) - pow(r, 2)
+                spoolPoint1y = (-qb-cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
+                spoolPoint1x = x1
+                spoolPoint2y = (-qb+cmath.sqrt(pow(qb,2) - 4*qa*qc))/(2*qa)
+                spoolPoint2x = x1
 
 
 
-        # Remove imajinary numbers
-        spoolPoint1x = spoolPoint1x.real
-        spoolPoint1y = spoolPoint1y.real
-        spoolPoint2x = spoolPoint2x.real
-        spoolPoint2y = spoolPoint2y.real
-        
-        f.write(';Spool points: (({},{}),({},{}))\n'.format(spoolPoint1x, spoolPoint1y, spoolPoint2x, spoolPoint2y))
-
-        # Choose a target spool point further from the startPoint
-        d1 = pow(spoolPoint1x-x1, 2) + pow(spoolPoint1y-y1, 2)
-        d2 = pow(spoolPoint2x-x1, 2) + pow(spoolPoint2y-y1, 2)
-        if d1 > d2:
-            tSpoolPointx = spoolPoint1x
-            tSpoolPointy = spoolPoint1y
-        else:
-            tSpoolPointx = spoolPoint2x
-            tSpoolPointy = spoolPoint2y
-
-        # Get spool point z
-        if x2 != x1:
-            lza = (z2-z1)/(x2-x1)     # a for linear formulat z = ax + b
-            lzb = - lza*x1 + z1 
-            tSpoolPointz = lza * tSpoolPointx + lzb
-        else:
-            lza = (z2-z1)/(y2-y1)     # a for linear formulat z = ax + b
-            lzb = - lza*y1 + z1 
-            tSpoolPointz = lza * tSpoolPointy + lzb
-
-        # Get target theta
-        tTheta = cmath.atan((tSpoolPointy-h)/(tSpoolPointx-h)).real
-        if tSpoolPointx-h < 0:
-            tTheta = tTheta + cmath.pi            # add 90 degress if the target point is on the left side of the ring.
-
-        
-
-        #tTheta = cmath.atan((tSpoolPointy-h)/(tSpoolPointx-h))
-        f.write(';Target spool points: ({},{})\n'.format(tSpoolPointx, tSpoolPointy))
-        
-        # Convert spool xy point to the rotation of the ring
-        # Get rotational direction to get to the target spool point
-
-
-        dTheta = tTheta - theta
-        f.write(';Theta, tTheta, dTheta: ({},{},{})\n'.format(math.degrees(theta), math.degrees(tTheta), math.degrees(dTheta)))
-        
-
-        #ui.messageBox("dTheta: {}".format(math.degrees(abs(dTheta))))
-        temp = round(-1 * dTheta / (2 * cmath.pi) * stepsPCircle, 2)      # -1 is to inverse the angle. + is to rotate the ring clockwise and - is for anticlockwise
-        #ui.messageBox("steps: {}".format(temp))
-        
-        f.write("G1 E{} Z{} F800\n".format(temp, tSpoolPointz))
+            # Remove imajinary numbers
+            spoolPoint1x = spoolPoint1x.real
+            spoolPoint1y = spoolPoint1y.real
+            spoolPoint2x = spoolPoint2x.real
+            spoolPoint2y = spoolPoint2y.real
             
-        theta = tTheta
+            f.write(';Spool points: (({},{}),({},{}))\n'.format(spoolPoint1x, spoolPoint1y, spoolPoint2x, spoolPoint2y))
+
+            # Choose a target spool point further from the startPoint
+            d1 = pow(spoolPoint1x-x1, 2) + pow(spoolPoint1y-y1, 2)
+            d2 = pow(spoolPoint2x-x1, 2) + pow(spoolPoint2y-y1, 2)
+            if d1 > d2:
+                tSpoolPointx = spoolPoint1x
+                tSpoolPointy = spoolPoint1y
+            else:
+                tSpoolPointx = spoolPoint2x
+                tSpoolPointy = spoolPoint2y
+
+            # Get spool point z
+            if x2 != x1:
+                lza = (z2-z1)/(x2-x1)     # a for linear formulat z = ax + b
+                lzb = - lza*x1 + z1 
+                tSpoolPointz = lza * tSpoolPointx + lzb
+            else:
+                lza = (z2-z1)/(y2-y1)     # a for linear formulat z = ax + b
+                lzb = - lza*y1 + z1 
+                tSpoolPointz = lza * tSpoolPointy + lzb
+
+            # Get target theta
+            tTheta = cmath.atan((tSpoolPointy-h)/(tSpoolPointx-h)).real
+            if tSpoolPointx-h < 0:
+                tTheta = tTheta + cmath.pi            # add 90 degress if the target point is on the left side of the ring.
+
+            
+
+            #tTheta = cmath.atan((tSpoolPointy-h)/(tSpoolPointx-h))
+            f.write(';Target spool points: ({},{})\n'.format(tSpoolPointx, tSpoolPointy))
+            
+            # Convert spool xy point to the rotation of the ring
+            # Get rotational direction to get to the target spool point
 
 
-    f.write('T0 ; change back to normal extruder')
-    f.close()
+            dTheta = tTheta - theta
+            f.write(';Theta, tTheta, dTheta: ({},{},{})\n'.format(math.degrees(theta), math.degrees(tTheta), math.degrees(dTheta)))
+            
 
-    ##############################
-    # 3. Export 3D model to g-code using slic3r
-    # 3.a Use slic3r, create g-code
-    # 3.b Add anchors
+            #ui.messageBox("dTheta: {}".format(math.degrees(abs(dTheta))))
+            temp = round(-1 * dTheta / (2 * cmath.pi) * stepsPCircle, 2)      # -1 is to inverse the angle. + is to rotate the ring clockwise and - is for anticlockwise
+            #ui.messageBox("steps: {}".format(temp))
+            
+            f.write("G1 E{} Z{} F800\n".format(temp, tSpoolPointz))
+                
+            theta = tTheta
+
+
+        f.write('T0 ; change back to normal extruder')
+        f.close()
+
+        ##############################
+        # 3. Export 3D model to g-code using slic3r
+        # 3.a Use slic3r, create g-code
+        # 3.b Add anchors
+
+    except:
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
 def exportBody():
@@ -515,10 +524,13 @@ def exportBody():
 
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
         _filePath + "/allBodies.stl",
-        "--first-layer-height", str(_layerHeight),
-        "--layer-height",str(_layerHeight),
+        "--first-layer-height", str(_layerThickness),
+        "--layer-height",str(_layerThickness),
+        "--temperature", str(_temperature),
+        "--bed-temperature", str(_bedTemperature),
         "--filament-diameter","1.75",
         "--nozzle-diameter","0.4",
+        "--skirts", "0",
         "--dont-arrange",
         "-o", _filePath + "/output-body.gcode"]) 
 
@@ -560,10 +572,13 @@ def exportAnchor():
 
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
         _filePath + "/allAnchors.stl",
-        "--first-layer-height", str(_layerHeight),
-        "--layer-height",str(_layerHeight),
+        "--first-layer-height", str(_layerThickness),
+        "--layer-height",str(_layerThickness),
+        "--temperature", str(_temperature),
+        "--bed-temperature", str(_bedTemperature),
         "--filament-diameter","1.75",
         "--nozzle-diameter","0.4",
+        "--skirts", "0",
         "--dont-arrange",
         "-o", _filePath + "/output-anchor.gcode"]) 
 
@@ -576,13 +591,230 @@ def combineGCodeFiles():
     try:
         fBody = open(_filePath +"/output-body.gcode", "r")
         fAnchor = open(_filePath +"/output-anchor.gcode", "r")
+        fThread = open(_filePath + "/output-thread.gcode", "r")
         fAll = open(_filePath +"/output-all.gcode", "w")
+        fBodyTmp = open(_filePath +"/output-body-tmp.gcode", "w")
+        fAnchorTmp = open(_filePath +"/output-anchor-tmp.gcode", "w")
 
         linesBody = fBody.readlines()
+        newLinesBody = list(linesBody)
         linesAnchor = fAnchor.readlines()
+        newLinesAnchor = list(linesAnchor)
 
-        #TODO: Start from here.
+        ### 1. Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
+        threadHeights = []
+        for line in _lines:
+            if line[0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[len(threadHeights)-1] != line[0, 2]):
+                threadHeights.append(line[0, 2])        #Do not save 0
+        # _ui.messageBox(str(threadHeight))
 
+        ### 2. Insert code resetting E value if none
+        layerChangeIndexesBody = [i for i, lB in enumerate(linesBody) if lB.startswith('G1 Z')]
+        layerChangeIndexesAnchor = [i for i, lA in enumerate(linesAnchor) if lA.startswith('G1 Z')]        
+        
+        endOfPrintIndexBody = [i for i, lB in enumerate(linesBody) if lB.startswith('M104 S0')]
+        endOfPrintIndexAnchor = [i for i, lA in enumerate(linesAnchor) if lA.startswith('M104 S0')]
+
+        ### 2.1 for anchor g-code file
+        #if there is no G92 E0 to reset E value, insert the coode
+        for i in range (2, len(layerChangeIndexesAnchor)-1):
+            if not linesAnchor[layerChangeIndexesAnchor[i]+2].startswith('G92 E0'):
+                if linesAnchor[layerChangeIndexesAnchor[i]-1].startswith('G1 X'): 
+                    head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-1].partition('E')
+                    eValue = float(eValueStr)
+                    head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-1].partition('E')
+                    newEValue =  float(eValueStr)
+                else:   #when there is `M106 ...` above `G1 Z...`
+                    if linesAnchor[layerChangeIndexesAnchor[i]-2].startswith('G1 X'): 
+                        head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-2].partition('E')
+                        eValue = float(eValueStr)
+                        head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-2].partition('E')
+                        newEValue =  float(eValueStr)
+                    else:
+                        head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-4].partition('E')
+                        eValue = float(eValueStr)
+                        head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-4].partition('E')
+                        newEValue =  float(eValueStr)
+                
+                linesAnchor.insert(layerChangeIndexesAnchor[i]+1, "G1 E"+str(round(eValue-2, 5))+" F2400.00000\n") # Retract
+                linesAnchor.insert(layerChangeIndexesAnchor[i]+2, "G92 E0\n")
+                linesAnchor.insert(layerChangeIndexesAnchor[i]+4, "G1 E2.00000 F2400.00000\n")
+
+                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+1, "G1 E"+str(round(newEValue-2, 5))+" F2400.00000\n") # Retract
+                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+2, "G92 E0\n")
+                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+4, "G1 E2.00000 F2400.00000\n")
+                
+                layerChangeIndexesAnchor[i+1:] = [x + 3 for x in layerChangeIndexesAnchor[i+1:]]     # Shift the rest of the indexes by 3 (lines)
+
+                for j in range (layerChangeIndexesAnchor[i]+6, layerChangeIndexesAnchor[i+1]):
+                    head, sep, eValueStr = linesAnchor[j].partition('E')
+                    if eValueStr:
+                        newEValueForThisLayer = float(eValueStr) - eValue + 2                            
+                        newLinesAnchor[j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
+
+
+
+        ### 2.2 for body g-code file
+        #if there is no G92 E0 to reset E value, insert the coode
+        for i in range (2, len(layerChangeIndexesBody)-1):
+            if not linesBody[layerChangeIndexesBody[i]+2].startswith('G92 E0'):
+                if linesBody[layerChangeIndexesBody[i]-1].startswith('G1 X'): 
+                    head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-1].partition('E')
+                    eValue = float(eValueStr)
+                    head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-1].partition('E')
+                    newEValue =  float(eValueStr)
+                else:   #when there is `M106 ...` above `G1 Z...`
+                    if linesBody[layerChangeIndexesBody[i]-2].startswith('G1 X'): 
+                        head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-2].partition('E')
+                        eValue = float(eValueStr)
+                        head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-2].partition('E')
+                        newEValue =  float(eValueStr)
+                    else:
+                        head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-4].partition('E')
+                        eValue = float(eValueStr)
+                        head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-4].partition('E')
+                        newEValue =  float(eValueStr)
+                
+                linesBody.insert(layerChangeIndexesBody[i]+1, "G1 E"+str(round(eValue-2, 5))+" F2400.00000\n") # Retract
+                linesBody.insert(layerChangeIndexesBody[i]+2, "G92 E0\n")
+                linesBody.insert(layerChangeIndexesBody[i]+4, "G1 E2.00000 F2400.00000\n")
+
+                newLinesBody.insert(layerChangeIndexesBody[i]+1, "G1 E"+str(round(newEValue-2, 5))+" F2400.00000\n") # Retract
+                newLinesBody.insert(layerChangeIndexesBody[i]+2, "G92 E0\n")
+                newLinesBody.insert(layerChangeIndexesBody[i]+4, "G1 E2.00000 F2400.00000\n")
+                
+                layerChangeIndexesBody[i+1:] = [x + 3 for x in layerChangeIndexesBody[i+1:]]     # Shift the rest of the indexes by 3 (lines)
+
+                for j in range (layerChangeIndexesBody[i]+6, layerChangeIndexesBody[i+1]):
+                    head, sep, eValueStr = linesBody[j].partition('E')
+                    if eValueStr:
+                        newEValueForThisLayer = float(eValueStr) - eValue + 2                            
+                        newLinesBody[j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
+
+
+        ### 2.3 Swap code lines between `G1 Z... F...` and `G1 E... F...`, `G92 E0`
+        for i in range (1, len(layerChangeIndexesBody)):
+            newLinesBody[layerChangeIndexesBody[i]], newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3] = newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3], newLinesBody[layerChangeIndexesBody[i]]
+        
+        for i in range (1, len(layerChangeIndexesAnchor)):
+            newLinesAnchor[layerChangeIndexesAnchor[i]], newLinesAnchor[layerChangeIndexesAnchor[i]+1], newLinesAnchor[layerChangeIndexesAnchor[i]+2], newLinesAnchor[layerChangeIndexesAnchor[i]+3] = newLinesAnchor[layerChangeIndexesAnchor[i]+1], newLinesAnchor[layerChangeIndexesAnchor[i]+2], newLinesAnchor[layerChangeIndexesAnchor[i]+3], newLinesAnchor[layerChangeIndexesAnchor[i]]
+
+        layerChangeIndexesBody[1:] = [x + 3 for x in layerChangeIndexesBody[1:]]
+        layerChangeIndexesAnchor[1:] = [x + 3 for x in layerChangeIndexesAnchor[1:]]
+        
+        fBodyTmp.writelines(newLinesBody)
+        fAnchorTmp.writelines(newLinesAnchor)
+
+
+        ### 3. Combine g-code of the two files until then, write into the final output file.
+        ### 3.1 Combine the first layer of body and anchor
+        fAll.write("T0\n")      # Say below code is for Extruder 1
+        fAll.writelines(newLinesBody[:layerChangeIndexesBody[2]-1]) # Write until `G92 E0` before `G1 X... Y... F...` and `G1 Z... F...`
+        fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[1]-1:layerChangeIndexesAnchor[2]-1]) # Write until `G92 E0` before `G1 X... Y... F...` and `G1 Z... F...`
+
+        
+        ### 3.2 Combine body and anchor
+        prevThreadLayerIndex = 2
+        # _ui.messageBox("threadHeights: " + str(threadHeights))
+        for threadHeight in threadHeights:
+            threadLayerIndex = int (threadHeight / _layerThickness)     # layer 10
+            # _ui.messageBox("threadLayerIndex: " + str(threadLayerIndex))
+
+            ### 3.2.1 Print body and anchor until thread layer
+            for i in range(prevThreadLayerIndex, threadLayerIndex+1):
+                if i+1 < len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
+                elif i+1 == len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexAnchor[0]])
+
+                if i+1 < len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
+                elif i+1 == len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]-1])
+
+            ### 3.2.2 Print anchor until thread layer + 1.6 mm or end
+            for i in range(threadLayerIndex+1, threadLayerIndex+1+int(1.6/_layerThickness)):
+                if i+1 < len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
+                elif i+1 == len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]])
+
+            ### 3.2.3 Print thread g-code
+            fAll.write("T1\n")      # Say below code is for Extruder 2 (Thread spool)
+
+            fAll.write("T0\n")      # Say below code is for Extruder 1
+
+            ### 3.2.4 Print body until thread layer + 1.6 mm or end
+            for i in range(threadLayerIndex+1, threadLayerIndex+1+int(1.6/_layerThickness)):
+                if i+1 < len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
+                elif i+1 == len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexBody[0]])
+
+            prevThreadLayerIndex = threadLayerIndex + 1
+        
+
+        ### 3.3 Print anything 1.6mm above the last thread height
+        if prevThreadLayerIndex+int(1.6/_layerThickness) <= max(len(layerChangeIndexesBody), len(layerChangeIndexesAnchor)):
+            for i in range(prevThreadLayerIndex+int(1.6/_layerThickness), max(len(layerChangeIndexesBody), len(layerChangeIndexesAnchor))-1):
+                if i+1 < len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
+                elif i+1 == len(layerChangeIndexesBody):
+                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexAnchor[0]])
+
+                if i+1 < len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
+                elif i+1 == len(layerChangeIndexesAnchor):
+                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]])
+
+
+
+
+        #     prevThreadLayerIndex = threadLayerIndex+1
+
+        #Maybe I can simplify the below code, as I know layer thickness.
+        # threadHeightLinesIndexBody = 0
+        # threadHeightLinesIndexAnchor = 0
+        # threadHeightLayerBody = 0
+        # threadHeightLayerAnchor = 0
+
+        # for threadHeight in threadHeights:
+        #     for j in range(threadHeightLinesIndexBody, len(layerChangeIndexesBody)):
+        #         head, sep, strTmpLayerHeight = newLinesBody[layerChangeIndexesBody[j]].partiton('G1 Z')
+        #         strTmpLayerHeight = strTmpLayerHeight.partition('F')
+        #         strTmpLayerHeight = strTmpLayerHeight.strip()
+        #         tmpLayerHeight = float(strTmpLayerHeight)
+        #         if tmpLayerHeight > threadHeightLayerBody and tmpLayerHeight <= threadHeight:
+        #             threadHeightLayerBody = tmpLayerHeight
+        #             threadHeightLinesIndexBody = j
+
+        #     for j in range(threadHeightLinesIndexAnchor, len(layerChangeIndexesAnchor)):
+        #         head, sep, strTmpLayerHeight = newLinesAnchor[layerChangeIndexesAnchor[j]].partiton('G1 Z')
+        #         strTmpLayerHeight = strTmpLayerHeight.partition('F')
+        #         strTmpLayerHeight = strTmpLayerHeight.strip()
+        #         tmpLayerHeight = float(strTmpLayerHeight)
+        #         if tmpLayerHeight > threadHeightLayerAnchor and tmpLayerHeight <= threadHeight:
+        #             threadHeightLayerAnchor = tmpLayerHeight
+        #             threadHeightLinesIndexAnchor = j
+
+        
+
+
+
+        fAll.writelines(newLinesBody[endOfPrintIndexAnchor[0]:])    # Write end of file. Cool down extruder and print bed.
+        
+        # for i in range(0, layerChangeIndexesBody[2]+3):
+        #     fAll.write(newLinesBody[i])
+        
+        # for i in range(layerChangeIndexesAnchor[1]+1, layerChangeIndexesAnchor[2]):
+        #     fAll.write(newLinesAnchor[i])
+
+        fAnchorTmp.close()
+        fBodyTmp.close()
+        fBody.close()
+        fAnchor.close()
+        fThread.close()
+        fAll.close()
 
     except:
         if _ui:
@@ -601,16 +833,3 @@ class MyCommandDestroyHandler(adsk.core.CommandEventHandler):
         except:
             if _ui:
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-# class MyPreSelectHandler(adsk.core.SelectionEventHandler):
-#     def __init__(self):
-#         super().__init__()
-#     def notify(self, args):
-#         try:
-#             selectedEdge = adsk.fusion.BRepEdge.cast(args.selection.entity)
-#             if selectedEdge:
-#                 args.additionalEntities = selectedEdge.tangentiallyConnectedEdges        
-#         except:
-#             if _ui:
-#                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc())) 
