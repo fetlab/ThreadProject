@@ -46,7 +46,7 @@ _temperature = 200
 _bedTemperature = 60
 
 # To combine three g-code files
-_threadZPoints = [0.0]
+# _threadZPoints = [0.0]
 
 # Thread coordinates
 _lines = []
@@ -322,7 +322,7 @@ def exportThread():
         _lines = np.zeros(shape=(len(_selectedLines), 2, 3))
         #lines = createZeroMatrix(len(selectedLines), 2, 3)
         #ui.messageBox(str(lines))
-        f = open(_filePath +"\output-thread.gcode", "w")
+        fThread = open(_filePath +"\output-thread.gcode", "w")
         #TODO: check connectivity and Eulerian trail from (0,0,0)
         for i in range(0, len(_selectedLines)):
             if _selectedLines[i].classType() == "adsk::fusion::BRepEdge":
@@ -370,12 +370,12 @@ def exportThread():
         #TODO: Check line connectivity
 
         # Get Z positions of end points of thread. Ignore Z=0
-        for line in _lines:
-            for endPoint in line:
-                if endPoint[2] != 0 and endPoint[2] != _threadZPoints[-1]: #TODO: Handle a case then thread goes down.
-                    _threadZPoints.append(endPoint[2])
+        # for line in _lines:
+        #     for endPoint in line:
+        #         if endPoint[2] != 0 and endPoint[2] != _threadZPoints[-1]: #TODO: Handle a case then thread goes down.
+        #             _threadZPoints.append(endPoint[2])
 
-        f.write('\n'+str(_threadZPoints))
+        # fThread.write('\n'+str(_threadZPoints))
 
         ### 2. Conver thread geometry to g-code
 
@@ -384,14 +384,11 @@ def exportThread():
         stepsPCircle = 142.5
         theta = math.radians(-90)
         
-        f.write('\n\nT1 ; change tool to Extruder 2\n')
-        f.write('G92 E0 ; set the current filament position to E2=0\n') # Assume 12 o'clock is E2=0
+        # fThread.write('\n\nT1 ; change tool to Extruder 2\n')
 
-        # 2.a Move bed at Y=0.
-        f.write('G0 Y0 ; Move bed to 0\n')
-
-        # 2.b project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
-        for i in range(0, len(_lines)):
+        # 2. project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
+        preEValue = 0
+        for i in range(len(_lines)):
             startPoint = _lines[i][0]
             endPoint = _lines[i][1]
             
@@ -430,7 +427,7 @@ def exportThread():
             spoolPoint2x = spoolPoint2x.real
             spoolPoint2y = spoolPoint2y.real
             
-            f.write(';Spool points: (({},{}),({},{}))\n'.format(spoolPoint1x, spoolPoint1y, spoolPoint2x, spoolPoint2y))
+            # fThread.write(';Spool points: (({},{}),({},{}))\n'.format(spoolPoint1x, spoolPoint1y, spoolPoint2x, spoolPoint2y))
 
             # Choose a target spool point further from the startPoint
             d1 = pow(spoolPoint1x-x1, 2) + pow(spoolPoint1y-y1, 2)
@@ -457,35 +454,40 @@ def exportThread():
             if tSpoolPointx-h < 0:
                 tTheta = tTheta + cmath.pi            # add 90 degress if the target point is on the left side of the ring.
 
-            
 
             #tTheta = cmath.atan((tSpoolPointy-h)/(tSpoolPointx-h))
-            f.write(';Target spool points: ({},{})\n'.format(tSpoolPointx, tSpoolPointy))
+            # fThread.write(';Target spool points: ({},{})\n'.format(tSpoolPointx, tSpoolPointy))
             
             # Convert spool xy point to the rotation of the ring
             # Get rotational direction to get to the target spool point
 
 
             dTheta = tTheta - theta
-            f.write(';Theta, tTheta, dTheta: ({},{},{})\n'.format(math.degrees(theta), math.degrees(tTheta), math.degrees(dTheta)))
+            # fThread.write(';Theta, tTheta, dTheta: ({},{},{})\n'.format(math.degrees(theta), math.degrees(tTheta), math.degrees(dTheta)))
             
 
             #ui.messageBox("dTheta: {}".format(math.degrees(abs(dTheta))))
-            temp = round(-1 * dTheta / (2 * cmath.pi) * stepsPCircle, 2)      # -1 is to inverse the angle. + is to rotate the ring clockwise and - is for anticlockwise
-            #ui.messageBox("steps: {}".format(temp))
+            eValue = -1 * dTheta / (2 * cmath.pi) * stepsPCircle      # -1 is to inverse the angle. + is to rotate the ring clockwise and - is for anticlockwise
+            #ui.messageBox("steps: {}".format(eValue))
+
+            if z1 != z2:
+                fThread.write('G0 Y%.5f ; Move bed to the center\n' % (_bedSizeY/2))    # put print bed at the center.
             
-            f.write("G1 E{} Z{} F800\n".format(temp, tSpoolPointz))
+            fThread.write("G1 E{:.5f} Z{:.5f} F800\n".format(eValue-preEValue, tSpoolPointz))
+            
+            if z1 != z2 and i != 0:
+                fThread.write('G92 E0 ; set the current filament position to E2=0\n') # Assume 12 o'clock is E2=0
+                preEValue = eValue
+
+            #TODO: check if preEValue works well. I need to put thread in another layer to test this.
                 
             theta = tTheta
 
+        fThread.write('G92 E0 ; set the current filament position to E2=0\n')
 
-        f.write('T0 ; change back to normal extruder')
-        f.close()
+        # fThread.write('T0 ; change back to normal extruder')
+        fThread.close()
 
-        ##############################
-        # 3. Export 3D model to g-code using slic3r
-        # 3.a Use slic3r, create g-code
-        # 3.b Add anchors
 
     except:
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -600,12 +602,19 @@ def combineGCodeFiles():
         newLinesBody = list(linesBody)
         linesAnchor = fAnchor.readlines()
         newLinesAnchor = list(linesAnchor)
+        linesThread = fThread.readlines()
 
         ### 1. Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
         threadHeights = []
-        for line in _lines:
-            if line[0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[len(threadHeights)-1] != line[0, 2]):
-                threadHeights.append(line[0, 2])        #Do not save 0
+        threadHeightIndexes = []
+        for i in range(len(_lines)):
+            if _lines[i, 0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != _lines[i, 0, 2]):
+                threadHeights.append(_lines[i, 0, 2])        #Do not save 0
+                threadHeightIndexes.append(i)
+        # for line in _lines:
+        #     if line[0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != line[0, 2]):
+        #         threadHeights.append(line[0, 2])        #Do not save 0
+        #         threadHeightIndexes.append(_lines.index(line))
         # _ui.messageBox(str(threadHeight))
 
         ### 2. Insert code resetting E value if none
@@ -614,6 +623,7 @@ def combineGCodeFiles():
         
         endOfPrintIndexBody = [i for i, lB in enumerate(linesBody) if lB.startswith('M104 S0')]
         endOfPrintIndexAnchor = [i for i, lA in enumerate(linesAnchor) if lA.startswith('M104 S0')]
+
 
         ### 2.1 for anchor g-code file
         #if there is no G92 E0 to reset E value, insert the coode
@@ -691,8 +701,7 @@ def combineGCodeFiles():
                         newEValueForThisLayer = float(eValueStr) - eValue + 2                            
                         newLinesBody[j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
 
-
-        ### 2.3 Swap code lines between `G1 Z... F...` and `G1 E... F...`, `G92 E0`
+        ### 2.3 Swap code lines between `G1 Z... F...` and `G1 E... F...`, `G92 E0` for body and anchor g-code
         for i in range (1, len(layerChangeIndexesBody)):
             newLinesBody[layerChangeIndexesBody[i]], newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3] = newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3], newLinesBody[layerChangeIndexesBody[i]]
         
@@ -713,8 +722,10 @@ def combineGCodeFiles():
         fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[1]-1:layerChangeIndexesAnchor[2]-1]) # Write until `G92 E0` before `G1 X... Y... F...` and `G1 Z... F...`
 
         
-        ### 3.2 Combine body and anchor
+        ### 3.2 Combine body, anchor, thread
         prevThreadLayerIndex = 2
+        layerChangeIndexesThread = [i for i, lB in enumerate(linesThread) if lB.startswith('G92 E0')]
+        
         # _ui.messageBox("threadHeights: " + str(threadHeights))
         for threadHeight in threadHeights:
             threadLayerIndex = int (threadHeight / _layerThickness)     # layer 10
@@ -741,8 +752,18 @@ def combineGCodeFiles():
 
             ### 3.2.3 Print thread g-code
             fAll.write("T1\n")      # Say below code is for Extruder 2 (Thread spool)
+            fAll.write("G92 E0\n")
+
+            #TODO: Start from the below. Check threadHeights. Probably I can change it to threadHeightChangeIndexes
+            
+            if threadHeights.index(threadHeight) == 0:
+                fAll.writelines(linesThread[:layerChangeIndexesThread[threadHeights.index(threadHeight)]+1])
+            else:
+                fAll.writelines(linesThread[layerChangeIndexesThread[threadHeights.index(threadHeight)-1]:layerChangeIndexesThread[threadHeights.index(threadHeight)]+1])
+
 
             fAll.write("T0\n")      # Say below code is for Extruder 1
+            fAll.write("G1 E0\n")      # Say below code is for Extruder 1
 
             ### 3.2.4 Print body until thread layer + 1.6 mm or end
             for i in range(threadLayerIndex+1, threadLayerIndex+1+int(1.6/_layerThickness)):
