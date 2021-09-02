@@ -264,137 +264,6 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-# class MySelectHandler(adsk.core.SelectionEventHandler):
-#     def __init__(self):
-#         super().__init__()
-#     def notify(self, args):
-#         try:
-#             global _numOfAnchors, _numOfLines
-#             # _ui.messageBox(str(args.objectType))
-#             args = adsk.core.SelectionEventArgs.cast(args)
-#             cmdInput = args.activeInput
-#             _ui.messageBox(str(args.activeInput))
-#             if cmdInput.id == "selThread"+str(_numOfLines-1):   # add thread selector on the command UI
-#                 # cmdInput = adsk.core.SelectionCommandInput.cast(cmdInput)
-#                 group = adsk.core.GroupCommandInput.cast(cmdInput.parentCommandInput)
-#                 # _ui.messageBox(str(group.id))
-#                 inputs = group.children
-#                 if cmdInput.selectionCount != 0 and inputs.itemById('selAnchor'+str(_numOfAnchors)) == None:
-#                     modelInput = inputs.addSelectionInput('selAnchor'+str(_numOfAnchors), 'Select Anchors', 'Select bodies to anchor thread')
-#                     modelInput.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies)
-#                     modelInput.setSelectionLimits(0)
-#                     _numOfAnchors += 1
-#                 elif cmdInput.selectionCount == 0:
-#                     inputs.itemById('selAnchor'+str(_numOfAnchors-1)).deleteMe()
-#                     _numOfAnchors -= 1
-
-#                 for i in range(inputs.count):
-#                     input = inputs.item(i)
-#                     _ui.messageBox(input.id)
-                    
-                
-#             elif cmdInput.id == "selAnchor"+str(_numOfAnchors-1):   # add anchor selector on the command UI
-#                 group = adsk.core.GroupCommandInput.cast(cmdInput.parentCommandInput)
-#                 _ui.messageBox(str(group.id))
-#                 inputs = group.children
-#                 if cmdInput.selectionCount != 0 and inputs.itemById('selThread'+str(_numOfLines)) == None:
-#                     modelInput = inputs.addSelectionInput('selThread'+str(_numOfLines), 'Select Threads', 'Select sketchlines to export as thread')
-#                     modelInput.addSelectionFilter(adsk.core.SelectionCommandInput.SketchCurves)
-#                     modelInput.setSelectionLimits(0)
-#                     _numOfLines += 1
-#                 elif cmdInput.selectionCount == 0:
-#                     inputs.itemById('selThread'+str(_numOfLines-1)).deleteMe()
-#                     _numOfAnchors -= 1
-#         except:
-#             if _ui:
-#                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-                
-
-# class MyUnSelectHandler(adsk.core.SelectionEventHandler):
-#     def __init__(self):
-#         super().__init__()
-#     def notify(self, args):
-#         try:
-#             selectedEdge = adsk.fusion.BRepEdge.cast(args.selection.entity) 
-#             if selectedEdge:
-#                 selectedEdges.remove(selectedEdge)
-#         except:
-#             if _ui:
-#                 _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-# class MyCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
-#     def __init__(self):
-#         super().__init__()
-#     def notify(self, args):
-#         try:
-#             global _numOfAnchors, _numOfLines, _inputs
-
-#             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
-#             # inputs = eventArgs.inputs
-#             cmdInput = eventArgs.input
-#             groupInput = adsk.core.GroupCommandInput.cast(cmdInput.parentCommandInput)
-
-#             _ui.messageBox(groupInput.id)
-            
-#             # for i in range(inputs.count):
-#             #         input = inputs.item(i)
-#             #         _ui.messageBox(input.id)
-
-#             groupChildInputs = groupInput.children
-
-#             # onInputChange for slider controller
-#             # if cmdInput.id == "slider_controller":
-#             #     sliderGroup = adsk.core.GroupCommandInput.cast(cmdInput.parentCommandInput)
-#             #     sliderInputs = sliderGroup.children
-#             #     updateSliders(sliderInputs)
-#             # else:
-#             #     tableInput = inputs.itemById('table')
-#             #     if cmdInput.id == 'tableAdd':
-#             #         addRowToTable(tableInput)
-#             #     elif cmdInput.id == 'tableDelete':
-#             #         if tableInput.selectedRow == -1:
-#             #             _ui.messageBox('Select one row to delete.')
-#             #         else:
-#             #             tableInput.deleteRow(tableInput.selectedRow)
-
-#             # _ui.messageBox(str(cmdInput.id))
-
-            
-#             _ui.messageBox("test")
-
-#             if cmdInput.id == "selThread"+str(_numOfLines-1):   # add thread selector on the command UI
-#                 # cmdInput = adsk.core.SelectionCommandInput.cast(cmdInput)
-#                 # _ui.messageBox(str(group.id))
-#                 if cmdInput.selectionCount != 0 and groupChildInputs.itemById('selAnchor'+str(_numOfAnchors)) == None:
-#                     modelInput = groupChildInputs.addSelectionInput('selAnchor'+str(_numOfAnchors), 'Select Anchors', 'Select bodies to anchor thread')
-#                     modelInput.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies)
-#                     modelInput.setSelectionLimits(0)
-#                     _numOfAnchors += 1
-#                 elif cmdInput.selectionCount == 0:
-#                     groupChildInputs.itemById('selAnchor'+str(_numOfAnchors-1)).deleteMe()
-#                     _numOfAnchors -= 1
-
-#                 for i in range(groupChildInputs.count):
-#                     input = groupChildInputs.item(i)
-#                     _ui.messageBox(input.id)
-                    
-                
-#             elif cmdInput.id == "selAnchor"+str(_numOfAnchors-1):   # add anchor selector on the command UI
-#                 group = adsk.core.GroupCommandInput.cast(cmdInput.parentCommandInput)
-#                 _ui.messageBox(str(group.id))
-#                 if cmdInput.selectionCount != 0 and groupChildInputs.itemById('selThread'+str(_numOfLines)) == None:
-#                     threadInput = groupChildInputs.addSelectionInput('selThread'+str(_numOfLines), 'Select Threads', 'Select sketchlines to export as thread')
-#                     threadInput.addSelectionFilter(adsk.core.SelectionCommandInput.SketchCurves)
-#                     threadInput.setSelectionLimits(0)
-#                     _numOfLines += 1
-#                 elif cmdInput.selectionCount == 0:
-#                     groupChildInputs.itemById('selThread'+str(_numOfLines-1)).deleteMe()
-#                     _numOfAnchors -= 1
-          
-#         except:
-#             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
 class MyExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
@@ -431,8 +300,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
             exportThread()
             exportBody()
             exportAnchor()
-
-            combineAllGCodeFiles()
+            # exportBodyAndAnchor()
 
         except:
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -441,9 +309,6 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
 def exportThread():
     try:
         global _lines
-
-        # _lines = np.zeros(shape=(sum(x is None for x in _selectedLines), len(_selectedLines), 2, 3))
-        # _ui.messageBox(str(np.shape(_lines)))
 
         _lines = np.zeros((len(_selectedLines), 2, 3))
         
@@ -540,7 +405,7 @@ def exportThread():
         # 2. project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
         preEValue = 0
         
-        fThread = open(_filePath +"\output-thread.gcode", "w")
+        fThread = open(_filePath +"\output-thread-tmp.gcode", "w")
         fThread.write(';anchor\n')
 
         for i in range(len(_lines)):
@@ -638,7 +503,23 @@ def exportThread():
                 theta = tTheta
 
             elif np.isnan(_lines[i,0,0]) and i != len(_lines)-1:
-                fThread.write(';anchor\n')
+                # Add comment for anchor
+                # Add gcode lines to over-rotate the ring. Thread can be fixed during print this way.
+                if eValue-preEValue >= 0:
+                    fThread.write('G1 E4 F800\n')
+                    fThread.write('G92 E0\n')
+                    fThread.write(';anchor\n')
+                    fThread.write('G1 E-4 F800\n')
+                    fThread.write('G92 E0\n')
+
+                else:
+                    fThread.write('G1 E-4 F800\n')
+                    fThread.write('G92 E0\n')
+                    fThread.write(';anchor\n')
+                    fThread.write('G1 E4 F800\n')
+                    fThread.write('G92 E0\n')
+
+
 
         # fThread.write('G92 E0 ; set the current filament position to E2=0\n')
 
@@ -656,7 +537,8 @@ def exportBody():
         design = adsk.fusion.Design.cast(product)
         exportMgr = design.exportManager
 
-        # Export each body to a stl file
+        #####################################
+        # 1. Export each body to a stl file
         for body in _selecedBodies:
             fileName = _filePath + "/" + body.name
 
@@ -667,8 +549,10 @@ def exportBody():
             
             exportMgr.execute(stlExportOptions)
 
-        # Combine the stl files into one file.
-        f_all = open(_filePath +"/allBodies.stl", "w")
+
+        #####################################
+        # 2. Combine all stl files into one file.
+        f_all = open(_filePath +"/body-all.stl", "w")
         f_all.write("solid ASCII\n")
 
         for body in _selecedBodies:
@@ -681,8 +565,11 @@ def exportBody():
         f_all.write("endsolid")
         f_all.close()
 
+
+        #####################################
+        # 3. Make a g-code file
         result = subprocess.check_output([_slic3rPath + "slic3r-console",
-        _filePath + "/allBodies.stl",
+        _filePath + "/body-all.stl",
         "--first-layer-height", str(_layerThickness),
         "--layer-height",str(_layerThickness),
         "--temperature", str(_temperature),
@@ -692,6 +579,134 @@ def exportBody():
         "--skirts", "0",
         "--dont-arrange",
         "-o", _filePath + "/output-body.gcode"]) 
+
+
+        #####################################
+        # 4. Clean the g-code file
+        fBody = open(_filePath +"/output-body.gcode", "r")
+        fBodyLines = fBody.readlines()
+        fBody.close()
+
+        # 4.1 Remove header and footer lines
+        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')] 
+
+        # 4.1.1 move the initial X,Y positions after the first G1 Z... line
+        if fBodyLines[layerChangeIndexesAnchor[1]-1].startswith('G1 X'):
+            fBodyLines.insert(layerChangeIndexesAnchor[1]+1, fBodyLines[layerChangeIndexesAnchor[1]-1])
+
+        # 4.1.2 Remove header. Lines before the second 'G1 Z...' and two lines after that. 'G1 E-2.00000 F2400.00000' and 'G92 E0'
+        del fBodyLines[:layerChangeIndexesAnchor[1]]
+        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
+        del fBodyLines[layerChangeIndexesAnchor[0]+1]
+        del fBodyLines[layerChangeIndexesAnchor[0]+1]
+
+        # 4.1.3 remove footer. Lines after the last 'G92 E0'
+        endOfPrintIndexAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G92 E0')]
+        del fBodyLines[endOfPrintIndexAnchor[-1]+1:]
+
+        # 4.2 Copy M106 or M107 from the nearest previous line to set fan speed.
+        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
+        
+        fBodyLines.insert(layerChangeIndexesAnchor[0]+1, "M107\n") # First layer is always M107
+        layerChangeIndexesAnchor[1:] = [x + 1 for x in layerChangeIndexesAnchor[1:]] 
+        
+        for i in range(1, len(layerChangeIndexesAnchor)):
+            for j in range(layerChangeIndexesAnchor[i]-1, layerChangeIndexesAnchor[i-1], -1):
+                if fBodyLines[j].startswith('M106') or fBodyLines[j].startswith('M107'):
+                    fBodyLines.insert(layerChangeIndexesAnchor[i]+1, fBodyLines[j])
+                    layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+                    break
+
+        # 4.3 Put 'G1 X... Y... F...' at i+2th line
+        for i in range(1, len(layerChangeIndexesAnchor)):
+            # 4.3.1 Move 'G1 X... Y... F...' to i+2th line if they are in next 2-4 lines
+            if fBodyLines[layerChangeIndexesAnchor[i]+2].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+2].find('F') != -1):
+                pass
+
+            elif fBodyLines[layerChangeIndexesAnchor[i]+3].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+3].find('F') != -1):
+                fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[layerChangeIndexesAnchor[i]+3])
+                del fBodyLines[layerChangeIndexesAnchor[i]+4]
+                
+            elif fBodyLines[layerChangeIndexesAnchor[i]+4].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+4].find('F') != -1):
+                fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[layerChangeIndexesAnchor[i]+4])
+                del fBodyLines[layerChangeIndexesAnchor[i]+5]
+
+            # 4.3.2 Copy X,Y points from the nearest previous line if there is no G1 X... Y... F7800 in next 2-4 lines
+            else:
+                for j in range(layerChangeIndexesAnchor[i]-1, layerChangeIndexesAnchor[i-1], -1):
+                    if fBodyLines[j].startswith('G1 X') and fBodyLines[j].startswith('F') != -1:
+                        fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[j])
+                        layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+
+                        # Remove the previous X,Y coordinates to remove unnecessary movement at the end of the previous layer
+                        del fBodyLines[j]
+                        layerChangeIndexesAnchor[i:] = [x - 1 for x in layerChangeIndexesAnchor[i:]] 
+                        break
+
+                    elif fBodyLines[j].startswith('G1 X') and fBodyLines[j].startswith('E') != -1:
+                        strXY, sep, tail = fBodyLines[j].partition('E')       # strXY = 'G1 X... Y... '
+                        fBodyLines.insert(layerChangeIndexesAnchor[i]+2, strXY+'F7800.000')
+                        layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+                        break
+
+                    elif fBodyLines[j].startswith('G1 X'):
+                        _ui.messageBox('Error!')
+                        break
+
+            # 3.4 Reset E values after every layer change
+        for i in range(1, len(layerChangeIndexesAnchor)):
+            # 3.4.1 If there is 'G91 E0' at 4th line after 'G1 Z...', Move that line and the previous line above 'G1 Z...'
+            if fBodyLines[layerChangeIndexesAnchor[i]+4].startswith('G92 E0'):
+                fBodyLines.insert(layerChangeIndexesAnchor[i], fBodyLines[layerChangeIndexesAnchor[i]+3])
+                del fBodyLines[layerChangeIndexesAnchor[i]+4]
+                fBodyLines.insert(layerChangeIndexesAnchor[i]+1, fBodyLines[layerChangeIndexesAnchor[i]+4])
+                del fBodyLines[layerChangeIndexesAnchor[i]+5]
+                layerChangeIndexesAnchor[i] = layerChangeIndexesAnchor[i]+2
+
+            # 3.4.2 If there is no 'G91 E0' before 'G1 Z...', Reset E value until meeting the next 'G92 E0'
+            elif not fBodyLines[layerChangeIndexesAnchor[i]-1].startswith('G92 E0'):
+                # 3.4.2.1 Insert 'G92 E0' before layer change
+                offset = 0
+                prevEValue = -1
+                while True:
+                    offset += 1
+                    if fBodyLines[layerChangeIndexesAnchor[i]-offset].find('E') != -1:
+                        if fBodyLines[layerChangeIndexesAnchor[i]-offset].find('F') != -1:
+                            _ui.messageBox('Error!')
+                        else:
+                            head, sep, eValueStr = fBodyLines[layerChangeIndexesAnchor[i]-offset].partition('E')
+                            prevEValue = float(eValueStr.strip())
+                            fBodyLines.insert(layerChangeIndexesAnchor[i], "G1 E"+str(round(prevEValue-2, 5))+" F2400.000\n") # Retract
+                            fBodyLines.insert(layerChangeIndexesAnchor[i]+1, "G92 E0\n")
+                            fBodyLines.insert(layerChangeIndexesAnchor[i]+5, "G1 E2.00000 F2400.000\n")
+                            
+                            layerChangeIndexesAnchor[i] = layerChangeIndexesAnchor[i]+2
+                            layerChangeIndexesAnchor[i+1:] = [x + 3 for x in layerChangeIndexesAnchor[i+1:]] 
+
+                        break
+                
+                # 3.4.2.1 Shift E values until meeting the next 'G92 E0'
+                eValueDiff = prevEValue - 2
+                offset = 3
+                while True:
+                    offset += 1
+                    if fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G92 E0'):
+                        break
+                    elif fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G1 X') and fBodyLines[layerChangeIndexesAnchor[i]+offset].find('E') != -1: #G1 X26.295 Y147.794 E75.48784
+                        head, sep, strEValue = fBodyLines[layerChangeIndexesAnchor[i]+offset].partition('E')
+                        newEValue = float(strEValue.strip()) - eValueDiff
+                        fBodyLines[layerChangeIndexesAnchor[i]+offset] = head + sep + "%.5f\n" % newEValue
+                    elif fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G1 E') and fBodyLines[layerChangeIndexesAnchor[i]+offset].find('F') != -1: #G1 E88.29126 F2400.00000
+                        head, sepE, tail = fBodyLines[layerChangeIndexesAnchor[i]+offset].partition('E')
+                        strEValue, sepF, tailF = tail.partition('F')
+                        newEValue = float(strEValue.strip()) - eValueDiff
+                        fBodyLines[layerChangeIndexesAnchor[i]+offset] = head + sepE + ("%.5f " % newEValue) + sepF + tailF
+
+
+        fAnchorTmp = open(_filePath +"/output-body-tmp.gcode", "w")
+        fAnchorTmp.writelines(fBodyLines)
+        fAnchorTmp.close()
+
 
     except:
         if _ui:
@@ -754,6 +769,8 @@ def exportAnchor():
                 if _lines[i, 0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != _lines[i, 0, 2]):
                     threadHeights.append(_lines[i, 0, 2])        #Do not save 0
                     threadHeightIndexes.append(i)
+        #TODO: threadHeightIndexes is never used in this function. Check if this block of code is necessary.
+
 
         # # 2.2 Read all anchor gcode files
         allfAnchorlines = []
@@ -766,12 +783,6 @@ def exportAnchor():
             else:
                 allfAnchorlines.append(None)
 
-        # # Test
-        # for i in range(len(allfAnchorlines)):
-        #     if allfAnchorlines[i] is not None:
-        #         fAnchor = open(_filePath +"/output-anchor" + str(i) + "-tmp.gcode", "w")
-        #         fAnchor.writelines(allfAnchorlines[i])
-        #         fAnchor.close()
         
         #####################################
         ### 3. Clean gcode files. Remove header and footer lines. Insert code resetting E value if none
@@ -786,12 +797,15 @@ def exportAnchor():
                 if allfAnchorlines[k][layerChangeIndexesAnchor[1]-1].startswith('G1 X'):
                     allfAnchorlines[k].insert(layerChangeIndexesAnchor[1]+1, allfAnchorlines[k][layerChangeIndexesAnchor[1]-1])
 
-                # 3.1.2 Remove header
+                # 3.1.2 Remove header. Lines before the second 'G1 Z...' and two lines after that. 'G1 E-2.00000 F2400.00000' and 'G92 E0'
                 del allfAnchorlines[k][:layerChangeIndexesAnchor[1]]
+                layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')]
+                del allfAnchorlines[k][layerChangeIndexesAnchor[0]+1]
+                del allfAnchorlines[k][layerChangeIndexesAnchor[0]+1]
 
-                # 3.1.3 remove footer
-                endOfPrintIndexAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('M107')]
-                del allfAnchorlines[k][endOfPrintIndexAnchor[-1]:]
+                # 3.1.3 remove footer. Lines after the last 'G92 E0'
+                endOfPrintIndexAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G92 E0')]
+                del allfAnchorlines[k][endOfPrintIndexAnchor[-1]+1:]
 
                 # 3.2 Copy M106 or M107 from the nearest previous line to set fan speed.
                 layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')]
@@ -891,57 +905,10 @@ def exportAnchor():
                                 allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset] = head + sep + "%.5f\n" % newEValue
                             elif allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset].startswith('G1 E') and allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset].find('F') != -1: #G1 E88.29126 F2400.00000
                                 head, sepE, tail = allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset].partition('E')
-                                strEvalue, sepF, tail = tail.partition('F')
+                                strEValue, sepF, tailF = tail.partition('F')
                                 newEValue = float(strEValue.strip()) - eValueDiff
-                                allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset] = head + sepE + "%.5f " + sepF + tail % newEValue
+                                allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset] = head + sepE + ("%.5f " % newEValue) + sepF + tailF
 
-
-
-
-
-
-
-                    # elif (not allfAnchorlines[k][layerChangeIndexesAnchor[i]-1].startwith('G92 E0')) and (not allfAnchorlines[k][layerChangeIndexesAnchor[i]+3].startwith('G92 E0')):
-
-                    # offset = 1
-                    # while not allfAnchorlines[k][layerChangeIndexesAnchor[i]-offset].startswith('G92 E0'):
-                    #     offset += 1
-                    #     if allfAnchorlines[k][layerChangeIndexesAnchor[i]-offset].startswith('G1 X') and allfAnchorlines[k][layerChangeIndexesAnchor[i]-offset].find('E') != -1: 
-                    #         # _ui.messageBox(allfAnchorlines[k][layerChangeIndexesAnchor[i]-offset])
-                    #         head, sep, eValueStr = allfAnchorlines[k][layerChangeIndexesAnchor[i]-offset].partition('E')
-                    #         eValue = float(eValueStr)
-
-                    #         allfAnchorlines[k].insert(layerChangeIndexesAnchor[i], "G1 E"+str(round(eValue-2, 5))+" F2400.000\n") # Retract
-                    #         allfAnchorlines[k].insert(layerChangeIndexesAnchor[i]+1, "G92 E0\n")
-                    #         allfAnchorlines[k].insert(layerChangeIndexesAnchor[i]+3, "G1 E2.00000 F2400.000\n")
-
-                    #         layerChangeIndexesAnchor[i+1:] = [x + 3 for x in layerChangeIndexesAnchor[i+1:]]     # Shift the rest of the indexes by 3 (lines)
-
-                    #         # if allfAnchorlines[k][layerChangeIndexesAnchor[i]+2].startswith('G92 E0'):
-                    #         #     del allfAnchorlines[k][layerChangeIndexesAnchor[i]+1:layerChangeIndexesAnchor[i]+2]
-                    #         #     layerChangeIndexesAnchor[i+1:] = [x - 2 for x in layerChangeIndexesAnchor[i+1:]] 
-                            
-                    #         # elif allfAnchorlines[k][layerChangeIndexesAnchor[i]+3].startswith('G92 E0'):
-                    #         #     del allfAnchorlines[k][layerChangeIndexesAnchor[i]+2:layerChangeIndexesAnchor[i]+3]
-                    #         #     layerChangeIndexesAnchor[i+1:] = [x - 2 for x in layerChangeIndexesAnchor[i+1:]] 
-
-                    #         for j in range (layerChangeIndexesAnchor[i]+1, layerChangeIndexesAnchor[i+1]):
-                    #             if allfAnchorlines[k][j].find('E') != -1 and allfAnchorlines[k][j].find('F') != -1:
-                    #                 head, sep, eValueStr = allfAnchorlines[k][j].partition('E')
-                    #                 head, sep, eValueStr = eValueStr.partition('F')
-                    #                 eValueStr = eValueStr.strip()
-                    #                 if eValueStr:
-                    #                     newEValueForThisLayer = float(eValueStr) - eValue + 2                            
-                    #                     allfAnchorlines[k][j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
-                    #             elif allfAnchorlines[k][j].find('E') != -1 and allfAnchorlines[k][j].find('F') == -1:
-                    #                 head, sep, eValueStr = allfAnchorlines[k][j].partition('E')
-                    #                 if eValueStr:
-                    #                     newEValueForThisLayer = float(eValueStr) - eValue + 2                            
-                    #                     allfAnchorlines[k][j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
-
-                    #         break
-
-                #TODO: handle the last chunk
             
                 fAnchorTmp = open(_filePath +"/output-anchor"+str(k)+"-tmp.gcode", "w")
                 fAnchorTmp.writelines(allfAnchorlines[k])
@@ -953,20 +920,26 @@ def exportAnchor():
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-def combineAllGCodeFiles():
+def exportBodyAndAnchor():
     try:
-        fBody = open(_filePath +"/output-body.gcode", "r")
-        fAnchor = open(_filePath +"/output-anchor.gcode", "r")
         fThread = open(_filePath + "/output-thread.gcode", "r")
-        fAll = open(_filePath +"/output-all.gcode", "w")
         fBodyTmp = open(_filePath +"/output-body-tmp.gcode", "w")
         fAnchorTmp = open(_filePath +"/output-anchor-tmp.gcode", "w")
 
-        linesBody = fBody.readlines()
-        newLinesBody = list(linesBody)
-        linesAnchor = fAnchor.readlines()
-        newLinesAnchor = list(linesAnchor)
-        linesThread = fThread.readlines()
+        fAllLines = []
+        fAllLines.append(";header\n")
+        fAllLines.append("M107\n")
+        fAllLines.append("M104 S200 ; set temperature\n")
+        fAllLines.append("G28 ; home all axes\n")
+        fAllLines.append("G1 Z5 F5000 ; lift nozzle\n\n")        
+        fAllLines.append("; Filament gcode\n\n")
+
+        fAllLines.append("M109 S200 ; set temperature and wait for it to be reached\n")
+        fAllLines.append("G21 ; set units to millimeters\n")
+        fAllLines.append("G90 ; use absolute coordinates\n")
+        fAllLines.append("M82 ; use absolute distances for extrusion\n")
+        fAllLines.append("G92 E0\n")
+
 
         ### 1. Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
         threadHeights = []
@@ -1199,6 +1172,9 @@ def combineAllGCodeFiles():
         fAnchor.close()
         fThread.close()
         fAll.close()
+
+        
+        fAll.writelines(fAllLines)
 
     except:
         if _ui:
