@@ -300,7 +300,7 @@ class MyExecuteHandler(adsk.core.CommandEventHandler):
             exportThread()
             exportBody()
             exportAnchor()
-            # exportBodyAndAnchor()
+            exportAll()
 
         except:
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -504,19 +504,21 @@ def exportThread():
 
             elif np.isnan(_lines[i,0,0]) and i != len(_lines)-1:
                 # Add comment for anchor
-                # Add gcode lines to over-rotate the ring. Thread can be fixed during print this way.
+                # Add gcode lines to over-rotate the ring. Thread can be fixed during print this way. Currently rotate 30 degree of the ring.
                 if eValue-preEValue >= 0:
-                    fThread.write('G1 E4 F800\n')
+                    fThread.write('G0 Y117.50000 ; Move bed to the center\n')
+                    fThread.write('G1 E12 F800\n')
                     fThread.write('G92 E0\n')
                     fThread.write(';anchor\n')
-                    fThread.write('G1 E-4 F800\n')
+                    fThread.write('G1 E-12 F800\n')
                     fThread.write('G92 E0\n')
 
                 else:
-                    fThread.write('G1 E-4 F800\n')
+                    fThread.write('G0 Y117.50000 ; Move bed to the center\n')
+                    fThread.write('G1 E-12 F800\n')
                     fThread.write('G92 E0\n')
                     fThread.write(';anchor\n')
-                    fThread.write('G1 E4 F800\n')
+                    fThread.write('G1 E12 F800\n')
                     fThread.write('G92 E0\n')
 
 
@@ -588,120 +590,127 @@ def exportBody():
         fBody.close()
 
         # 4.1 Remove header and footer lines
-        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')] 
+        layerChangeIndexesBody = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')] 
 
         # 4.1.1 move the initial X,Y positions after the first G1 Z... line
-        if fBodyLines[layerChangeIndexesAnchor[1]-1].startswith('G1 X'):
-            fBodyLines.insert(layerChangeIndexesAnchor[1]+1, fBodyLines[layerChangeIndexesAnchor[1]-1])
+        if fBodyLines[layerChangeIndexesBody[1]-1].startswith('G1 X'):
+            fBodyLines.insert(layerChangeIndexesBody[1]+1, fBodyLines[layerChangeIndexesBody[1]-1])
 
         # 4.1.2 Remove header. Lines before the second 'G1 Z...' and two lines after that. 'G1 E-2.00000 F2400.00000' and 'G92 E0'
-        del fBodyLines[:layerChangeIndexesAnchor[1]]
-        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
-        del fBodyLines[layerChangeIndexesAnchor[0]+1]
-        del fBodyLines[layerChangeIndexesAnchor[0]+1]
+        del fBodyLines[:layerChangeIndexesBody[1]]
+        layerChangeIndexesBody = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
+        del fBodyLines[layerChangeIndexesBody[0]+1]
+        del fBodyLines[layerChangeIndexesBody[0]+1]
 
         # 4.1.3 remove footer. Lines after the last 'G92 E0'
         endOfPrintIndexAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G92 E0')]
         del fBodyLines[endOfPrintIndexAnchor[-1]+1:]
 
         # 4.2 Copy M106 or M107 from the nearest previous line to set fan speed.
-        layerChangeIndexesAnchor = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
+        layerChangeIndexesBody = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
         
-        fBodyLines.insert(layerChangeIndexesAnchor[0]+1, "M107\n") # First layer is always M107
-        layerChangeIndexesAnchor[1:] = [x + 1 for x in layerChangeIndexesAnchor[1:]] 
+        fBodyLines.insert(layerChangeIndexesBody[0]+1, "M107\n") # First layer is always M107
+        layerChangeIndexesBody[1:] = [x + 1 for x in layerChangeIndexesBody[1:]] 
         
-        for i in range(1, len(layerChangeIndexesAnchor)):
-            for j in range(layerChangeIndexesAnchor[i]-1, layerChangeIndexesAnchor[i-1], -1):
+        for i in range(1, len(layerChangeIndexesBody)):
+            for j in range(layerChangeIndexesBody[i]-1, layerChangeIndexesBody[i-1], -1):
                 if fBodyLines[j].startswith('M106') or fBodyLines[j].startswith('M107'):
-                    fBodyLines.insert(layerChangeIndexesAnchor[i]+1, fBodyLines[j])
-                    layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+                    fBodyLines.insert(layerChangeIndexesBody[i]+1, fBodyLines[j])
+                    layerChangeIndexesBody[i+1:] = [x + 1 for x in layerChangeIndexesBody[i+1:]] 
                     break
 
         # 4.3 Put 'G1 X... Y... F...' at i+2th line
-        for i in range(1, len(layerChangeIndexesAnchor)):
+        for i in range(1, len(layerChangeIndexesBody)):
             # 4.3.1 Move 'G1 X... Y... F...' to i+2th line if they are in next 2-4 lines
-            if fBodyLines[layerChangeIndexesAnchor[i]+2].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+2].find('F') != -1):
+            if fBodyLines[layerChangeIndexesBody[i]+2].startswith('G1 X') and (fBodyLines[layerChangeIndexesBody[i]+2].find('F') != -1):
                 pass
 
-            elif fBodyLines[layerChangeIndexesAnchor[i]+3].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+3].find('F') != -1):
-                fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[layerChangeIndexesAnchor[i]+3])
-                del fBodyLines[layerChangeIndexesAnchor[i]+4]
+            elif fBodyLines[layerChangeIndexesBody[i]+3].startswith('G1 X') and (fBodyLines[layerChangeIndexesBody[i]+3].find('F') != -1):
+                fBodyLines.insert(layerChangeIndexesBody[i]+2, fBodyLines[layerChangeIndexesBody[i]+3])
+                del fBodyLines[layerChangeIndexesBody[i]+4]
                 
-            elif fBodyLines[layerChangeIndexesAnchor[i]+4].startswith('G1 X') and (fBodyLines[layerChangeIndexesAnchor[i]+4].find('F') != -1):
-                fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[layerChangeIndexesAnchor[i]+4])
-                del fBodyLines[layerChangeIndexesAnchor[i]+5]
+            elif fBodyLines[layerChangeIndexesBody[i]+4].startswith('G1 X') and (fBodyLines[layerChangeIndexesBody[i]+4].find('F') != -1):
+                fBodyLines.insert(layerChangeIndexesBody[i]+2, fBodyLines[layerChangeIndexesBody[i]+4])
+                del fBodyLines[layerChangeIndexesBody[i]+5]
 
             # 4.3.2 Copy X,Y points from the nearest previous line if there is no G1 X... Y... F7800 in next 2-4 lines
             else:
-                for j in range(layerChangeIndexesAnchor[i]-1, layerChangeIndexesAnchor[i-1], -1):
+                for j in range(layerChangeIndexesBody[i]-1, layerChangeIndexesBody[i-1], -1):
                     if fBodyLines[j].startswith('G1 X') and fBodyLines[j].startswith('F') != -1:
-                        fBodyLines.insert(layerChangeIndexesAnchor[i]+2, fBodyLines[j])
-                        layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+                        fBodyLines.insert(layerChangeIndexesBody[i]+2, fBodyLines[j])
+                        layerChangeIndexesBody[i+1:] = [x + 1 for x in layerChangeIndexesBody[i+1:]] 
 
                         # Remove the previous X,Y coordinates to remove unnecessary movement at the end of the previous layer
                         del fBodyLines[j]
-                        layerChangeIndexesAnchor[i:] = [x - 1 for x in layerChangeIndexesAnchor[i:]] 
+                        layerChangeIndexesBody[i:] = [x - 1 for x in layerChangeIndexesBody[i:]] 
                         break
 
                     elif fBodyLines[j].startswith('G1 X') and fBodyLines[j].startswith('E') != -1:
                         strXY, sep, tail = fBodyLines[j].partition('E')       # strXY = 'G1 X... Y... '
-                        fBodyLines.insert(layerChangeIndexesAnchor[i]+2, strXY+'F7800.000')
-                        layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
+                        fBodyLines.insert(layerChangeIndexesBody[i]+2, strXY+'F7800.000')
+                        layerChangeIndexesBody[i+1:] = [x + 1 for x in layerChangeIndexesBody[i+1:]] 
                         break
 
                     elif fBodyLines[j].startswith('G1 X'):
                         _ui.messageBox('Error!')
                         break
 
-            # 3.4 Reset E values after every layer change
-        for i in range(1, len(layerChangeIndexesAnchor)):
-            # 3.4.1 If there is 'G91 E0' at 4th line after 'G1 Z...', Move that line and the previous line above 'G1 Z...'
-            if fBodyLines[layerChangeIndexesAnchor[i]+4].startswith('G92 E0'):
-                fBodyLines.insert(layerChangeIndexesAnchor[i], fBodyLines[layerChangeIndexesAnchor[i]+3])
-                del fBodyLines[layerChangeIndexesAnchor[i]+4]
-                fBodyLines.insert(layerChangeIndexesAnchor[i]+1, fBodyLines[layerChangeIndexesAnchor[i]+4])
-                del fBodyLines[layerChangeIndexesAnchor[i]+5]
-                layerChangeIndexesAnchor[i] = layerChangeIndexesAnchor[i]+2
+            # 4.4 Reset E values after every layer change
+        for i in range(1, len(layerChangeIndexesBody)):
+            # 4.4.1 If there is 'G91 E0' at 4th line after 'G1 Z...', Move that line and the previous line above 'G1 Z...'
+            if fBodyLines[layerChangeIndexesBody[i]+4].startswith('G92 E0'):
+                fBodyLines.insert(layerChangeIndexesBody[i], fBodyLines[layerChangeIndexesBody[i]+3])
+                del fBodyLines[layerChangeIndexesBody[i]+4]
+                fBodyLines.insert(layerChangeIndexesBody[i]+1, fBodyLines[layerChangeIndexesBody[i]+4])
+                del fBodyLines[layerChangeIndexesBody[i]+5]
+                layerChangeIndexesBody[i] = layerChangeIndexesBody[i]+2
 
-            # 3.4.2 If there is no 'G91 E0' before 'G1 Z...', Reset E value until meeting the next 'G92 E0'
-            elif not fBodyLines[layerChangeIndexesAnchor[i]-1].startswith('G92 E0'):
+            # 4.4.2 If there is no 'G91 E0' before 'G1 Z...', Reset E value until meeting the next 'G92 E0'
+            elif not fBodyLines[layerChangeIndexesBody[i]-1].startswith('G92 E0'):
                 # 3.4.2.1 Insert 'G92 E0' before layer change
                 offset = 0
                 prevEValue = -1
                 while True:
                     offset += 1
-                    if fBodyLines[layerChangeIndexesAnchor[i]-offset].find('E') != -1:
-                        if fBodyLines[layerChangeIndexesAnchor[i]-offset].find('F') != -1:
+                    if fBodyLines[layerChangeIndexesBody[i]-offset].find('E') != -1:
+                        if fBodyLines[layerChangeIndexesBody[i]-offset].find('F') != -1:
                             _ui.messageBox('Error!')
                         else:
-                            head, sep, eValueStr = fBodyLines[layerChangeIndexesAnchor[i]-offset].partition('E')
+                            head, sep, eValueStr = fBodyLines[layerChangeIndexesBody[i]-offset].partition('E')
                             prevEValue = float(eValueStr.strip())
-                            fBodyLines.insert(layerChangeIndexesAnchor[i], "G1 E"+str(round(prevEValue-2, 5))+" F2400.000\n") # Retract
-                            fBodyLines.insert(layerChangeIndexesAnchor[i]+1, "G92 E0\n")
-                            fBodyLines.insert(layerChangeIndexesAnchor[i]+5, "G1 E2.00000 F2400.000\n")
+                            fBodyLines.insert(layerChangeIndexesBody[i], "G1 E"+str(round(prevEValue-2, 5))+" F2400.000\n") # Retract
+                            fBodyLines.insert(layerChangeIndexesBody[i]+1, "G92 E0\n")
+                            fBodyLines.insert(layerChangeIndexesBody[i]+5, "G1 E2.00000 F2400.000\n")
                             
-                            layerChangeIndexesAnchor[i] = layerChangeIndexesAnchor[i]+2
-                            layerChangeIndexesAnchor[i+1:] = [x + 3 for x in layerChangeIndexesAnchor[i+1:]] 
+                            layerChangeIndexesBody[i] = layerChangeIndexesBody[i]+2
+                            layerChangeIndexesBody[i+1:] = [x + 3 for x in layerChangeIndexesBody[i+1:]] 
 
                         break
                 
-                # 3.4.2.1 Shift E values until meeting the next 'G92 E0'
+                # 4.4.2.1 Shift E values until meeting the next 'G92 E0'
                 eValueDiff = prevEValue - 2
                 offset = 3
                 while True:
                     offset += 1
-                    if fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G92 E0'):
+                    if fBodyLines[layerChangeIndexesBody[i]+offset].startswith('G92 E0'):
                         break
-                    elif fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G1 X') and fBodyLines[layerChangeIndexesAnchor[i]+offset].find('E') != -1: #G1 X26.295 Y147.794 E75.48784
-                        head, sep, strEValue = fBodyLines[layerChangeIndexesAnchor[i]+offset].partition('E')
+                    elif fBodyLines[layerChangeIndexesBody[i]+offset].startswith('G1 X') and fBodyLines[layerChangeIndexesBody[i]+offset].find('E') != -1: #G1 X26.295 Y147.794 E75.48784
+                        head, sep, strEValue = fBodyLines[layerChangeIndexesBody[i]+offset].partition('E')
                         newEValue = float(strEValue.strip()) - eValueDiff
-                        fBodyLines[layerChangeIndexesAnchor[i]+offset] = head + sep + "%.5f\n" % newEValue
-                    elif fBodyLines[layerChangeIndexesAnchor[i]+offset].startswith('G1 E') and fBodyLines[layerChangeIndexesAnchor[i]+offset].find('F') != -1: #G1 E88.29126 F2400.00000
-                        head, sepE, tail = fBodyLines[layerChangeIndexesAnchor[i]+offset].partition('E')
+                        fBodyLines[layerChangeIndexesBody[i]+offset] = head + sep + "%.5f\n" % newEValue
+                    elif fBodyLines[layerChangeIndexesBody[i]+offset].startswith('G1 E') and fBodyLines[layerChangeIndexesBody[i]+offset].find('F') != -1: #G1 E88.29126 F2400.00000
+                        head, sepE, tail = fBodyLines[layerChangeIndexesBody[i]+offset].partition('E')
                         strEValue, sepF, tailF = tail.partition('F')
                         newEValue = float(strEValue.strip()) - eValueDiff
-                        fBodyLines[layerChangeIndexesAnchor[i]+offset] = head + sepE + ("%.5f " % newEValue) + sepF + tailF
+                        fBodyLines[layerChangeIndexesBody[i]+offset] = head + sepE + ("%.5f " % newEValue) + sepF + tailF
 
+        ### 5. Add layer number before each G1 Z...
+        layerChangeIndexesBody = [i for i, lA in enumerate(fBodyLines) if lA.startswith('G1 Z')]
+        fBodyLines.insert(0, ';LAYER:1 ;BODY\n')
+        layerChangeIndexesBody = [x+1 for x in layerChangeIndexesBody]
+        for i in range(1, len(layerChangeIndexesBody)):
+            fBodyLines.insert(layerChangeIndexesBody[i], ';LAYER:'+str(i+1)+' ;BODY\n')
+            layerChangeIndexesBody[i+1:] = [x+1 for x in layerChangeIndexesBody[i+1:]]
 
         fAnchorTmp = open(_filePath +"/output-body-tmp.gcode", "w")
         fAnchorTmp.writelines(fBodyLines)
@@ -744,24 +753,10 @@ def exportAnchor():
                 "--dont-arrange",
                 "-o", _filePath + "/output-anchor" + str(i) + ".gcode"]) 
 
-        # # Combine the stl files into one file.
-        # f_all = open(_filePath +"/allAnchors.stl", "w")
-        # f_all.write("solid ASCII\n")
-
-        # for anchor in _selectedAnchors:
-        #     if anchor is not None:
-        #         f = open(_filePath + "/" + anchor.name + ".stl", "r")
-        #         count = f.readlines()
-        #         # _ui.messageBox(str(type(count)))
-        #         for i in range(1, len(count)-1):
-        #             f_all.write(count[i]),
-
-        # f_all.write("endsolid")
-        # f_all.close()
 
         #####################################
         ### 2. Combine until thread line
-        # 2.1 Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
+        ### 2.1 Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
         threadHeights = []
         threadHeightIndexes = []
         for i in range(len(_lines)):
@@ -772,7 +767,7 @@ def exportAnchor():
         #TODO: threadHeightIndexes is never used in this function. Check if this block of code is necessary.
 
 
-        # # 2.2 Read all anchor gcode files
+        ### 2.2 Read all anchor gcode files
         allfAnchorlines = []
         for i in range(len(_selectedAnchors)):
             if _selectedAnchors[i] is not None:
@@ -790,24 +785,24 @@ def exportAnchor():
         for k in range(len(allfAnchorlines)):
             if allfAnchorlines[k] is not None:
 
-                # 3.1 Remove header and footer lines
+                ### 3.1 Remove header and footer lines
                 layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')] 
 
-                # 3.1.1 move the initial X,Y positions after the first G1 Z... line
+                ### 3.1.1 move the initial X,Y positions after the first G1 Z... line
                 if allfAnchorlines[k][layerChangeIndexesAnchor[1]-1].startswith('G1 X'):
                     allfAnchorlines[k].insert(layerChangeIndexesAnchor[1]+1, allfAnchorlines[k][layerChangeIndexesAnchor[1]-1])
 
-                # 3.1.2 Remove header. Lines before the second 'G1 Z...' and two lines after that. 'G1 E-2.00000 F2400.00000' and 'G92 E0'
+                ### 3.1.2 Remove header. Lines before the second 'G1 Z...' and two lines after that. 'G1 E-2.00000 F2400.00000' and 'G92 E0'
                 del allfAnchorlines[k][:layerChangeIndexesAnchor[1]]
                 layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')]
                 del allfAnchorlines[k][layerChangeIndexesAnchor[0]+1]
                 del allfAnchorlines[k][layerChangeIndexesAnchor[0]+1]
 
-                # 3.1.3 remove footer. Lines after the last 'G92 E0'
+                ### 3.1.3 remove footer. Lines after the last 'G92 E0'
                 endOfPrintIndexAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G92 E0')]
                 del allfAnchorlines[k][endOfPrintIndexAnchor[-1]+1:]
 
-                # 3.2 Copy M106 or M107 from the nearest previous line to set fan speed.
+                ### 3.2 Copy M106 or M107 from the nearest previous line to set fan speed.
                 layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')]
                 
                 allfAnchorlines[k].insert(layerChangeIndexesAnchor[0]+1, "M107\n") # First layer is always M107
@@ -820,9 +815,9 @@ def exportAnchor():
                             layerChangeIndexesAnchor[i+1:] = [x + 1 for x in layerChangeIndexesAnchor[i+1:]] 
                             break
 
-                # 3.3 Put 'G1 X... Y... F...' at i+2th line
+                ### 3.3 Put 'G1 X... Y... F...' at i+2th line
                 for i in range(1, len(layerChangeIndexesAnchor)):
-                    # 3.3.1 Move 'G1 X... Y... F...' to i+2th line if they are in next 2-4 lines
+                    ### 3.3.1 Move 'G1 X... Y... F...' to i+2th line if they are in next 2-4 lines
                     if allfAnchorlines[k][layerChangeIndexesAnchor[i]+2].startswith('G1 X') and (allfAnchorlines[k][layerChangeIndexesAnchor[i]+2].find('F') != -1):
                         pass
 
@@ -834,7 +829,7 @@ def exportAnchor():
                         allfAnchorlines[k].insert(layerChangeIndexesAnchor[i]+2, allfAnchorlines[k][layerChangeIndexesAnchor[i]+4])
                         del allfAnchorlines[k][layerChangeIndexesAnchor[i]+5]
 
-                    # 3.3.2 Copy X,Y points from the nearest previous line if there is no G1 X... Y... F7800 in next 2-4 lines
+                    ### 3.3.2 Copy X,Y points from the nearest previous line if there is no G1 X... Y... F7800 in next 2-4 lines
                     # if ((not (allfAnchorlines[k][layerChangeIndexesAnchor[i]+2].startswith('G1 X') and allfAnchorlines[k][layerChangeIndexesAnchor[i]+2].find('F') != -1)) and 
                     # (not (allfAnchorlines[k][layerChangeIndexesAnchor[i]+3].startswith('G1 X') and allfAnchorlines[k][layerChangeIndexesAnchor[i]+3].find('F') != -1)) and 
                     # (not (allfAnchorlines[k][layerChangeIndexesAnchor[i]+4].startswith('G1 X') and allfAnchorlines[k][layerChangeIndexesAnchor[i]+4].find('F') != -1))):
@@ -860,7 +855,7 @@ def exportAnchor():
                                 break
                     
 
-                # 3.4 Reset E values after every layer change
+                ### 3.4 Reset E values after every layer change
                 for i in range(1, len(layerChangeIndexesAnchor)):
                     # 3.4.1 If there is 'G91 E0' at 4th line after 'G1 Z...', Move that line and the previous line above 'G1 Z...'
                     if allfAnchorlines[k][layerChangeIndexesAnchor[i]+4].startswith('G92 E0'):
@@ -909,6 +904,13 @@ def exportAnchor():
                                 newEValue = float(strEValue.strip()) - eValueDiff
                                 allfAnchorlines[k][layerChangeIndexesAnchor[i]+offset] = head + sepE + ("%.5f " % newEValue) + sepF + tailF
 
+                ### 4. Add layer number before each G1 Z...
+                layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith('G1 Z')]
+                allfAnchorlines[k].insert(0, ';LAYER:1 ;ANCHOR'+str(k)+'\n')
+                layerChangeIndexesAnchor = [x+1 for x in layerChangeIndexesAnchor]
+                for i in range(1, len(layerChangeIndexesAnchor)):
+                    allfAnchorlines[k].insert(layerChangeIndexesAnchor[i], ';LAYER:'+str(i+1)+' ;ANCHOR'+str(k)+'\n')
+                    layerChangeIndexesAnchor[i+1:] = [x+1 for x in layerChangeIndexesAnchor[i+1:]]
             
                 fAnchorTmp = open(_filePath +"/output-anchor"+str(k)+"-tmp.gcode", "w")
                 fAnchorTmp.writelines(allfAnchorlines[k])
@@ -920,261 +922,125 @@ def exportAnchor():
             _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-def exportBodyAndAnchor():
+def exportAll():
     try:
-        fThread = open(_filePath + "/output-thread.gcode", "r")
-        fBodyTmp = open(_filePath +"/output-body-tmp.gcode", "w")
-        fAnchorTmp = open(_filePath +"/output-anchor-tmp.gcode", "w")
+        fThread = open(_filePath + "/output-thread-tmp.gcode", "r")
+        fBody = open(_filePath +"/output-body-tmp.gcode", "r")
+        fAll = open(_filePath + "/output-all.gcode", "w")
 
-        fAllLines = []
-        fAllLines.append(";header\n")
-        fAllLines.append("M107\n")
-        fAllLines.append("M104 S200 ; set temperature\n")
-        fAllLines.append("G28 ; home all axes\n")
-        fAllLines.append("G1 Z5 F5000 ; lift nozzle\n\n")        
-        fAllLines.append("; Filament gcode\n\n")
+        # Read body, anchor, thread files
+        fBodyLines = fBody.readlines()
+        allfAnchorlines = []
+        for i in range(len(_selectedAnchors)):
+            if _selectedAnchors[i] is not None:
+                fAnchor = open(_filePath +"/output-anchor" + str(i) + "-tmp.gcode", "r")
+                fAnchorLines = fAnchor.readlines()
+                allfAnchorlines.append(fAnchorLines)
+                fAnchor.close()
+            else:
+                allfAnchorlines.append(None)
+        fThreadLines = fThread.readlines()
 
-        fAllLines.append("M109 S200 ; set temperature and wait for it to be reached\n")
-        fAllLines.append("G21 ; set units to millimeters\n")
-        fAllLines.append("G90 ; use absolute coordinates\n")
-        fAllLines.append("M82 ; use absolute distances for extrusion\n")
-        fAllLines.append("G92 E0\n")
+        # Add header
+        fAll.write(";Header\n")
+        fAll.write("M107\n")
+        fAll.write("M104 S200 ; set temperature\n")
+        fAll.write("G28 ; home all axes\n")
+        fAll.write("G1 Z5 F5000 ; lift nozzle\n\n")        
+        fAll.write("; Filament gcode\n\n")
 
+        fAll.write("M109 S200 ; set temperature and wait for it to be reached\n")
+        fAll.write("G21 ; set units to millimeters\n")
+        fAll.write("G90 ; use absolute coordinates\n")
+        fAll.write("M82 ; use absolute distances for extrusion\n")
+        fAll.write("G92 E0\n\n")
+        fAll.write(";End of header\n")
 
+        ##############################
         ### 1. Check height of thread. Visit one of two points of all thread, and then make a list of height. Skip z=0.
         threadHeights = []
         threadHeightIndexes = []
         for i in range(len(_lines)):
-            if _lines[i, 0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != _lines[i, 0, 2]):
+            if (not np.isnan(_lines[i,0,0])) and _lines[i, 0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != _lines[i, 0, 2]):
                 threadHeights.append(_lines[i, 0, 2])        #Do not save 0
                 threadHeightIndexes.append(i)
-        # for line in _lines:
-        #     if line[0, 2] != 0 and (len(threadHeights) == 0 or threadHeights[-1] != line[0, 2]):
-        #         threadHeights.append(line[0, 2])        #Do not save 0
-        #         threadHeightIndexes.append(_lines.index(line))
-        # _ui.messageBox(str(threadHeight))
 
-        ### 2. Clean gcode files. Insert code resetting E value if none
-        layerChangeIndexesBody = [i for i, lB in enumerate(linesBody) if lB.startswith('G1 Z')]
-        layerChangeIndexesAnchor = [i for i, lA in enumerate(linesAnchor) if lA.startswith('G1 Z')]        
-        
-        endOfPrintIndexBody = [i for i, lB in enumerate(linesBody) if lB.startswith('M104 S0')]
-        endOfPrintIndexAnchor = [i for i, lA in enumerate(linesAnchor) if lA.startswith('M104 S0')]
-
-
-        ### 2.1 for anchor g-code file
-        #if there is no G92 E0 to reset E value, insert the coode
-        for i in range (2, len(layerChangeIndexesAnchor)-1):
-            if not linesAnchor[layerChangeIndexesAnchor[i]+2].startswith('G92 E0'):
-                if linesAnchor[layerChangeIndexesAnchor[i]-1].startswith('G1 X'): 
-                    head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-1].partition('E')
-                    eValue = float(eValueStr)
-                    head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-1].partition('E')
-                    newEValue =  float(eValueStr)
-                else:   #when there is `M106 ...` above `G1 Z...`
-                    if linesAnchor[layerChangeIndexesAnchor[i]-2].startswith('G1 X'): 
-                        head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-2].partition('E')
-                        eValue = float(eValueStr)
-                        head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-2].partition('E')
-                        newEValue =  float(eValueStr)
-                    else:
-                        head, sep, eValueStr = linesAnchor[layerChangeIndexesAnchor[i]-4].partition('E')
-                        eValue = float(eValueStr)
-                        head, sep, eValueStr = newLinesAnchor[layerChangeIndexesAnchor[i]-4].partition('E')
-                        newEValue =  float(eValueStr)
-                
-                linesAnchor.insert(layerChangeIndexesAnchor[i]+1, "G1 E"+str(round(eValue-2, 5))+" F2400.00000\n") # Retract
-                linesAnchor.insert(layerChangeIndexesAnchor[i]+2, "G92 E0\n")
-                linesAnchor.insert(layerChangeIndexesAnchor[i]+4, "G1 E2.00000 F2400.00000\n")
-
-                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+1, "G1 E"+str(round(newEValue-2, 5))+" F2400.00000\n") # Retract
-                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+2, "G92 E0\n")
-                newLinesAnchor.insert(layerChangeIndexesAnchor[i]+4, "G1 E2.00000 F2400.00000\n")
-                
-                layerChangeIndexesAnchor[i+1:] = [x + 3 for x in layerChangeIndexesAnchor[i+1:]]     # Shift the rest of the indexes by 3 (lines)
-
-                for j in range (layerChangeIndexesAnchor[i]+6, layerChangeIndexesAnchor[i+1]):
-                    head, sep, eValueStr = linesAnchor[j].partition('E')
-                    if eValueStr:
-                        newEValueForThisLayer = float(eValueStr) - eValue + 2                            
-                        newLinesAnchor[j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
-
-
-        ### 2.2 for body g-code file
-        #if there is no G92 E0 to reset E value, insert the coode
-        for i in range (2, len(layerChangeIndexesBody)-1):
-            if not linesBody[layerChangeIndexesBody[i]+2].startswith('G92 E0'):
-                if linesBody[layerChangeIndexesBody[i]-1].startswith('G1 X'): 
-                    head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-1].partition('E')
-                    eValue = float(eValueStr)
-                    head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-1].partition('E')
-                    newEValue =  float(eValueStr)
-                else:   #when there is `M106 ...` above `G1 Z...`
-                    if linesBody[layerChangeIndexesBody[i]-2].startswith('G1 X'): 
-                        head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-2].partition('E')
-                        eValue = float(eValueStr)
-                        head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-2].partition('E')
-                        newEValue =  float(eValueStr)
-                    else:
-                        head, sep, eValueStr = linesBody[layerChangeIndexesBody[i]-4].partition('E')
-                        eValue = float(eValueStr)
-                        head, sep, eValueStr = newLinesBody[layerChangeIndexesBody[i]-4].partition('E')
-                        newEValue =  float(eValueStr)
-                
-                linesBody.insert(layerChangeIndexesBody[i]+1, "G1 E"+str(round(eValue-2, 5))+" F2400.00000\n") # Retract
-                linesBody.insert(layerChangeIndexesBody[i]+2, "G92 E0\n")
-                linesBody.insert(layerChangeIndexesBody[i]+4, "G1 E2.00000 F2400.00000\n")
-
-                newLinesBody.insert(layerChangeIndexesBody[i]+1, "G1 E"+str(round(newEValue-2, 5))+" F2400.00000\n") # Retract
-                newLinesBody.insert(layerChangeIndexesBody[i]+2, "G92 E0\n")
-                newLinesBody.insert(layerChangeIndexesBody[i]+4, "G1 E2.00000 F2400.00000\n")
-                
-                layerChangeIndexesBody[i+1:] = [x + 3 for x in layerChangeIndexesBody[i+1:]]     # Shift the rest of the indexes by 3 (lines)
-
-                for j in range (layerChangeIndexesBody[i]+6, layerChangeIndexesBody[i+1]):
-                    head, sep, eValueStr = linesBody[j].partition('E')
-                    if eValueStr:
-                        newEValueForThisLayer = float(eValueStr) - eValue + 2                            
-                        newLinesBody[j] = head + sep + "%.5f\n" % newEValueForThisLayer # This is to avoid error when Evalue is same with other values on the same line.
-
-        ### 2.3 Swap code lines between `G1 Z... F...` and `G1 E... F...`, `G92 E0` for body and anchor g-code
-        for i in range (1, len(layerChangeIndexesBody)):
-            newLinesBody[layerChangeIndexesBody[i]], newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3] = newLinesBody[layerChangeIndexesBody[i]+1], newLinesBody[layerChangeIndexesBody[i]+2], newLinesBody[layerChangeIndexesBody[i]+3], newLinesBody[layerChangeIndexesBody[i]]
-        
-        for i in range (1, len(layerChangeIndexesAnchor)):
-            newLinesAnchor[layerChangeIndexesAnchor[i]], newLinesAnchor[layerChangeIndexesAnchor[i]+1], newLinesAnchor[layerChangeIndexesAnchor[i]+2], newLinesAnchor[layerChangeIndexesAnchor[i]+3] = newLinesAnchor[layerChangeIndexesAnchor[i]+1], newLinesAnchor[layerChangeIndexesAnchor[i]+2], newLinesAnchor[layerChangeIndexesAnchor[i]+3], newLinesAnchor[layerChangeIndexesAnchor[i]]
-
-        layerChangeIndexesBody[1:] = [x + 3 for x in layerChangeIndexesBody[1:]]
-        layerChangeIndexesAnchor[1:] = [x + 3 for x in layerChangeIndexesAnchor[1:]]
-        
-        fBodyTmp.writelines(newLinesBody)
-        fAnchorTmp.writelines(newLinesAnchor)
-
-
-        ### 3. Combine g-code of the two files until then, write into the final output file.
-        ### 3.1 Combine the first layer of body and anchor
-        fAll.write("T0\n")      # Say below code is for Extruder 1
-        fAll.writelines(newLinesBody[:layerChangeIndexesBody[2]-1]) # Write until `G92 E0` before `G1 X... Y... F...` and `G1 Z... F...`
-        fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[1]-1:layerChangeIndexesAnchor[2]-1]) # Write until `G92 E0` before `G1 X... Y... F...` and `G1 Z... F...`
-
-        
-        ### 3.2 Combine body, anchor, thread
-        prevThreadLayerIndex = 2
-        layerChangeIndexesThread = [i for i, lB in enumerate(linesThread) if lB.startswith('G92 E0')]
-        
-        # _ui.messageBox("threadHeights: " + str(threadHeights))
-        for threadHeight in threadHeights:
-            threadLayerIndex = int (threadHeight / _layerThickness)     # layer 10
-            # _ui.messageBox("threadLayerIndex: " + str(threadLayerIndex))
-
-            ### 3.2.1 Print body and anchor until thread layer
-            for i in range(prevThreadLayerIndex, threadLayerIndex+1):
-                if i+1 < len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
-                elif i+1 == len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexAnchor[0]])
-
-                if i+1 < len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
-                elif i+1 == len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]-1])
-
-            ### 3.2.2 Print anchor until thread layer + 1.6 mm or end
-            for i in range(threadLayerIndex+1, threadLayerIndex+1+int(1.6/_layerThickness)):
-                if i+1 < len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
-                elif i+1 == len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]])
-
-            ### 3.2.3 Print thread g-code
-            fAll.write("T1\n")      # Say below code is for Extruder 2 (Thread spool)
-            fAll.write("G92 E0\n")
-
-            #TODO: Start from the below. Check threadHeights. Probably I can change it to threadHeightChangeIndexes
-            
-            if threadHeights.index(threadHeight) == 0:
-                fAll.writelines(linesThread[:layerChangeIndexesThread[threadHeights.index(threadHeight)]+1])
+        ##############################
+        ### 2. Get indexes of layer change lines
+        ### 2.1 For body gcode file
+        layerChangeIndexesBody = [i for i, lA in enumerate(fBodyLines) if lA.startswith(';LAYER:')]
+        ### 2.2 For anchor gcode files
+        allLayerChangeIndexesAnchor = []
+        for k in range(len(allfAnchorlines)):
+            if allfAnchorlines[k] is not None:
+                layerChangeIndexesAnchor = [i for i, lA in enumerate(allfAnchorlines[k]) if lA.startswith(';LAYER:')]
+                allLayerChangeIndexesAnchor.append(layerChangeIndexesAnchor)
             else:
-                fAll.writelines(linesThread[layerChangeIndexesThread[threadHeights.index(threadHeight)-1]:layerChangeIndexesThread[threadHeights.index(threadHeight)]+1])
-
-
-            fAll.write("T0\n")      # Say below code is for Extruder 1
-            fAll.write("G1 E0\n")      # Say below code is for Extruder 1
-
-            ### 3.2.4 Print body until thread layer + 1.6 mm or end
-            for i in range(threadLayerIndex+1, threadLayerIndex+1+int(1.6/_layerThickness)):
-                if i+1 < len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
-                elif i+1 == len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexBody[0]])
-
-            prevThreadLayerIndex = threadLayerIndex + 1
+                allLayerChangeIndexesAnchor.append(None)       
+        ### 2.3 For Thread gcode file
+        threadPauseIndexes =  [i for i, lA in enumerate(fThreadLines) if lA.startswith(';anchor')]
+        # _ui.messageBox(str(placeToPutAnchorLines))
         
+        ##############################
+        ### 3. Combine body, anchor, thread gcode files
+        prevThreadLayerIndex = 0
+        fAll.write("T0\n")      # Say below code is for Extruder 1
 
-        ### 3.3 Print anything 1.6mm above the last thread height
-        if prevThreadLayerIndex+int(1.6/_layerThickness) <= max(len(layerChangeIndexesBody), len(layerChangeIndexesAnchor)):
-            for i in range(prevThreadLayerIndex+int(1.6/_layerThickness), max(len(layerChangeIndexesBody), len(layerChangeIndexesAnchor))-1):
-                if i+1 < len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:layerChangeIndexesBody[i+1]-1])
-                elif i+1 == len(layerChangeIndexesBody):
-                    fAll.writelines(newLinesBody[layerChangeIndexesBody[i]-1:endOfPrintIndexAnchor[0]])
-
-                if i+1 < len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:layerChangeIndexesAnchor[i+1]-1])
-                elif i+1 == len(layerChangeIndexesAnchor):
-                    fAll.writelines(newLinesAnchor[layerChangeIndexesAnchor[i]-1:endOfPrintIndexAnchor[0]])
-
-
-
-
-        #     prevThreadLayerIndex = threadLayerIndex+1
-
-        #Maybe I can simplify the below code, as I know layer thickness.
-        # threadHeightLinesIndexBody = 0
-        # threadHeightLinesIndexAnchor = 0
-        # threadHeightLayerBody = 0
-        # threadHeightLayerAnchor = 0
-
-        # for threadHeight in threadHeights:
-        #     for j in range(threadHeightLinesIndexBody, len(layerChangeIndexesBody)):
-        #         head, sep, strTmpLayerHeight = newLinesBody[layerChangeIndexesBody[j]].partiton('G1 Z')
-        #         strTmpLayerHeight = strTmpLayerHeight.partition('F')
-        #         strTmpLayerHeight = strTmpLayerHeight.strip()
-        #         tmpLayerHeight = float(strTmpLayerHeight)
-        #         if tmpLayerHeight > threadHeightLayerBody and tmpLayerHeight <= threadHeight:
-        #             threadHeightLayerBody = tmpLayerHeight
-        #             threadHeightLinesIndexBody = j
-
-        #     for j in range(threadHeightLinesIndexAnchor, len(layerChangeIndexesAnchor)):
-        #         head, sep, strTmpLayerHeight = newLinesAnchor[layerChangeIndexesAnchor[j]].partiton('G1 Z')
-        #         strTmpLayerHeight = strTmpLayerHeight.partition('F')
-        #         strTmpLayerHeight = strTmpLayerHeight.strip()
-        #         tmpLayerHeight = float(strTmpLayerHeight)
-        #         if tmpLayerHeight > threadHeightLayerAnchor and tmpLayerHeight <= threadHeight:
-        #             threadHeightLayerAnchor = tmpLayerHeight
-        #             threadHeightLinesIndexAnchor = j
-
+        ### 3.1 Add body & anchor lines until the thread height
+        threadLayer = int(threadHeights[0] / _layerThickness)
+        layerAfterThread = 0
+        for i in range(0, threadLayer + 1):
+            ### 3.1.1 Add body g-code until the thread layer
+            if i < len(layerChangeIndexesBody) - 1:
+                fAll.writelines(fBodyLines[layerChangeIndexesBody[i]:layerChangeIndexesBody[i+1]-1])
+            elif i == len(layerChangeIndexesBody) - 1:  # when i is last layer, copy until the end of the file
+                fAll.writelines(fBodyLines[layerChangeIndexesBody[i]:-1])
+            
+            ### 3.1.2 Add anchor g-code until the thread layer
+            for k in range(len(allfAnchorlines)):
+                if allfAnchorlines[k] is not None:
+                    if i < len(allLayerChangeIndexesAnchor[k]) - 1:
+                        fAll.writelines(allfAnchorlines[k][allLayerChangeIndexesAnchor[k][i]:allLayerChangeIndexesAnchor[k][i+1]-1])
+                    elif i == len(allLayerChangeIndexesAnchor[k]) - 1:  # when i is last layer, copy until the end of the file
+                        fAll.writelines(allfAnchorlines[k][allLayerChangeIndexesAnchor[k][i]:-1])
+            layerAfterThread = i
         
+        ##############################
+        ### 4. Add anchor gcode until the end and add thread
+        layerAfterThread += 1
+        threadCounter = 0
+        for k in range(len(allfAnchorlines)): 
+            if allfAnchorlines[k] is not None:
+                fAll.writelines(allfAnchorlines[k][allLayerChangeIndexesAnchor[k][layerAfterThread]:-1])
+            else: #TODO write thread lines
+                fAll.write("T1 ;Thread\n")
+                if threadCounter < len(threadPauseIndexes) - 1:
+                    fAll.writelines(fThreadLines[threadPauseIndexes[threadCounter]+1:threadPauseIndexes[threadCounter+1]])
+                elif threadCounter == len(threadPauseIndexes) - 1:
+                    fAll.writelines(fThreadLines[threadPauseIndexes[threadCounter]+1:])
+                fAll.write("T0 ;End of thread\n")
+                threadCounter += 1
 
+        ##############################
+        ### 5. Add rest of the body lines
+        # _ui.messageBox('layerAfterThread:'+str(layerAfterThread)+'\nlen(layerChangeIndexesBody):'+str(len(layerChangeIndexesBody)))
+        if layerAfterThread <= len(layerChangeIndexesBody):
+            fAll.writelines(fBodyLines[layerChangeIndexesBody[layerAfterThread]:-1])
+            
+        ##############################
+        # 6. Add footer
+        fAll.write(';Footer\n')
+        fAll.write('M104 S0 ; turn off temperature\n')
+        fAll.write('G28 X0  ; home X axis\n')
+        fAll.write('M84     ; disable motors\n\n')
+        fAll.write('M140 S0 ; set bed temperature\n')
+        fAll.write(';End of footer \n')
 
-
-        fAll.writelines(newLinesBody[endOfPrintIndexAnchor[0]:])    # Write end of file. Cool down extruder and print bed.
-        
-        # for i in range(0, layerChangeIndexesBody[2]+3):
-        #     fAll.write(newLinesBody[i])
-        
-        # for i in range(layerChangeIndexesAnchor[1]+1, layerChangeIndexesAnchor[2]):
-        #     fAll.write(newLinesAnchor[i])
-
-        fAnchorTmp.close()
-        fBodyTmp.close()
         fBody.close()
         fAnchor.close()
         fThread.close()
         fAll.close()
 
-        
-        fAll.writelines(fAllLines)
 
     except:
         if _ui:
