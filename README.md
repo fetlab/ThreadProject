@@ -22,7 +22,7 @@ ExportThread.py is developed and tested in Windows. In MacOS, the script will pr
 <ol>
   <li>If there is no bodies called PrintBed and ThreadStartPoint, run ExportThread.py script by clicking TOOLS tab, ADD-INDS, ExportThread, and Run button. </li>
   <li>PrintBed and ThreadStartPoint bodies will be created. Click Cancel.</li>
-  <li>Create main bodies, thread lines, and anchors on the PrintBed body. Main bodies will be embedding threads after print. Thread lines are paths that a thread will be placed. Anchors are to bend thread outside of main bodies. There should be an anchor wherever you want to change angle of the thread outside of main boides. Be careful to choose "New Bodies" option when you extrude from the PrintBed body. When creating threads, use sketch lines.</li>
+  <li>Create main bodies, thread lines, and anchors on the PrintBed body. Main bodies will be embedding threads after print. Thread lines are paths that a thread will be placed. Anchors are to bend thread outside of main bodies. You do not need anchors for vertically bending thread. There should be an anchor wherever you want to change angle of the thread outside of main boides. Be careful to choose "New Bodies" option when you extrude from the PrintBed body. When creating threads, use sketch lines.</li>
   <li>(Important) Connect the beginning of the thread lines and the corner (-78mm, 0, 0) of the ThreadStartingPoint body by using 3D Sketch. You can create 3D Sketches by checking 3D Sketch option in SKETCH PALETTE while sketching.</li>
   <li>Run ExportThread.py script by clicking TOOLS tab, ADD-INDS, ExportThread, and Run button.</li>
   <li>Set File Path to tell where to export the result gcode files.</li>
