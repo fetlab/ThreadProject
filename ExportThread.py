@@ -4,20 +4,36 @@
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import subprocess
 import cmath, math
-import sys
+import sys, os, platform
 import inspect
-import os
 
 #Use the below three lines if you get error "ModuleNotFoundError: No module named 'numpy'". They may not work on Mac.
 # import subprocess
 # subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'numpy'])
 # import numpy as np
 
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    message = """
+Can't import Numpy. You probably need to install it. To do so:
+* In Fusion, open View → Show Text Commands
+* Make sure the radio button in the bottom-right corner is set to "Py"
+* Run the following code:
+
+    import subprocess
+    print(subprocess.check_output([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip']).decode())
+    print(subprocess.check_output([sys.executable, '-m', 'pip', 'install', 'numpy']).decode())
+
+* You may want to restart Fusion if your processer goes to 100%.
+* Try to run this script again."""
+    sys.exit(-1)
+
 script_path = os.path.abspath(inspect.getfile(inspect.currentframe()))
 script_name = os.path.splitext(os.path.basename(script_path))[0]
 script_dir = os.path.dirname(script_path)
 
-sys.path.append(script_dir + "\Modules")
+sys.path.append(os.path.join(script_dir, "Modules"))
 try:
     import numpy as np
 finally:
@@ -33,8 +49,14 @@ _handlers = []
 _selectedLines = []
 _selecedBodies = []
 _selectedAnchors = []
-_filePath = "C:\Program Files\Slic3r"
-_slic3rPath = "C:\Program Files\Slic3r\\"
+if platform.system() == 'Windows':
+    _filePath = "C:\Program Files\Slic3r"
+    _slic3rPath = "C:\Program Files\Slic3r\\"
+    _slic3rExe = 'slic3r-console'
+elif platform.system() == 'Darwin':
+    _filePath = '/tmp'
+    _slic3rPath = '/Applications/Slic3r.app/Contents/MacOS'
+    _slic3rExe = 'Slic3r'
 
 # Print settings
 _layerThickness = 0.2
@@ -169,7 +191,7 @@ def exportCompBodyAsSTL():
                     # Create a body proxy.
                     body = body.createForAssemblyContext(occ)
 
-                fileName = outDir + "/" + comp.name.replace(" ","_" ) + body.name
+                fileName = os.path.join(outDir, comp.name.replace(" ","_" ) + body.name)
 
                 # create stl exportOptions
                 stlExportOptions = exportMgr.createSTLExportOptions(body, fileName)
@@ -405,7 +427,7 @@ def exportThread():
         # 2. project the position on the ring. If there are anchors on the way, (1) lift the ring up, (2) go to the position (slightly outer than the anchor), (3) go to the position
         preEValue = 0
         
-        fThread = open(_filePath +"\output-thread-tmp.gcode", "w")
+        fThread = open(os.path.join(_filePath, "output-thread-tmp.gcode"), "w")
         fThread.write(';anchor\n')
 
         for i in range(len(_lines)):
@@ -542,7 +564,7 @@ def exportBody():
         #####################################
         # 1. Export each body to a stl file
         for body in _selecedBodies:
-            fileName = _filePath + "/" + body.name
+            fileName = os.path.join(_filePath, body.name)
 
             # create stl exportOptions
             stlExportOptions = exportMgr.createSTLExportOptions(body, fileName)
@@ -558,7 +580,7 @@ def exportBody():
         f_all.write("solid ASCII\n")
 
         for body in _selecedBodies:
-            f = open(_filePath + "/" + body.name + ".stl", "r")
+            f = open(os.path.join(_filePath, body.name + ".stl"), "r")
             count = f.readlines()
             # _ui.messageBox(str(type(count)))
             for i in range(1, len(count)-1):
@@ -570,8 +592,8 @@ def exportBody():
 
         #####################################
         # 3. Make a g-code file
-        result = subprocess.check_output([_slic3rPath + "slic3r-console",
-        _filePath + "/body-all.stl",
+        result = subprocess.check_output([os.path.join(_slic3rPath, _slic3rExe),
+        os.path.join(_filePath, "body-all.stl"),
         "--first-layer-height", str(_layerThickness),
         "--layer-height",str(_layerThickness),
         "--temperature", str(_temperature),
@@ -580,7 +602,7 @@ def exportBody():
         "--nozzle-diameter","0.4",
         "--skirts", "0",
         "--dont-arrange",
-        "-o", _filePath + "/output-body.gcode"]) 
+        "-o", os.path.join(_filePath, "output-body.gcode")]) 
 
 
         #####################################
@@ -732,7 +754,7 @@ def exportAnchor():
         # 1. Export each body to a stl file and then gcode file
         for i in range(len(_selectedAnchors)):
             if _selectedAnchors[i] is not None:
-                fileName = _filePath + "/anchor" + str(i)
+                fileName = os.path.join(_filePath, "anchor" + str(i))
 
                 # create stl exportOptions
                 stlExportOptions = exportMgr.createSTLExportOptions(_selectedAnchors[i], fileName)
@@ -741,8 +763,8 @@ def exportAnchor():
                 
                 exportMgr.execute(stlExportOptions)
 
-                result = subprocess.check_output([_slic3rPath + "slic3r-console",
-                _filePath + "/anchor" + str(i) + ".stl",
+                result = subprocess.check_output([os.path.join(_slic3rPath, _slic3rExe),
+                os.path.join(_filePath, "anchor" + str(i) + ".stl"),
                 "--first-layer-height", str(_layerThickness),
                 "--layer-height",str(_layerThickness),
                 "--temperature", str(_temperature),
@@ -751,7 +773,7 @@ def exportAnchor():
                 "--nozzle-diameter","0.4",
                 "--skirts", "0",
                 "--dont-arrange",
-                "-o", _filePath + "/output-anchor" + str(i) + ".gcode"]) 
+                "-o", os.path.join(_filePath, "output-anchor" + str(i) + ".gcode")]) 
 
 
         #####################################
@@ -771,7 +793,7 @@ def exportAnchor():
         allfAnchorlines = []
         for i in range(len(_selectedAnchors)):
             if _selectedAnchors[i] is not None:
-                fAnchor = open(_filePath +"/output-anchor" + str(i) + ".gcode", "r")
+                fAnchor = open(os.path.join(_filePath, "output-anchor" + str(i) + ".gcode"), "r")
                 fAnchorLines = fAnchor.readlines()
                 allfAnchorlines.append(fAnchorLines)
                 fAnchor.close()
@@ -924,16 +946,16 @@ def exportAnchor():
 
 def exportAll():
     try:
-        fThread = open(_filePath + "/output-thread-tmp.gcode", "r")
-        fBody = open(_filePath +"/output-body-tmp.gcode", "r")
-        fAll = open(_filePath + "/output-all.gcode", "w")
+        fThread = open(os.path.join(_filePath, "output-thread-tmp.gcode"), "r")
+        fBody = open(os.path.join(_filePath, "output-body-tmp.gcode"), "r")
+        fAll  = open(os.path.join(_filePath, "output-all.gcode"), "w")
 
         # Read body, anchor, thread files
         fBodyLines = fBody.readlines()
         allfAnchorlines = []
         for i in range(len(_selectedAnchors)):
             if _selectedAnchors[i] is not None:
-                fAnchor = open(_filePath +"/output-anchor" + str(i) + "-tmp.gcode", "r")
+                fAnchor = open(os.path.join(_filePath, "output-anchor" + str(i) + "-tmp.gcode"), "r")
                 fAnchorLines = fAnchor.readlines()
                 allfAnchorlines.append(fAnchorLines)
                 fAnchor.close()
