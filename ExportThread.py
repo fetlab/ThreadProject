@@ -25,7 +25,7 @@ Can't import Numpy. You probably need to install it. To do so:
     print(subprocess.check_output([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip']).decode())
     print(subprocess.check_output([sys.executable, '-m', 'pip', 'install', 'numpy']).decode())
 
-* You may want to restart Fusion if your processer goes to 100%.
+* You may want to restart Fusion if your processor goes to 100%.
 * Try to run this script again."""
     sys.exit(-1)
 
