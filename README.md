@@ -2,6 +2,21 @@
 ## Before you start
 ExportThread.py is developed and tested in Windows. In MacOS, the script will probably not work. It is because that a part of the script trying to install numpy. Anyone is welcomed to fix the problem.
 
+## Running on Mac OS
+You need to have Numpy installed in the Fusion 360 Python interpreter. To do so:
+
+* In Fusion, open View → Show Text Commands
+* Make sure the radio button in the bottom-right corner is set to "Py"
+* Run the following code:
+
+```
+import subprocess
+print(subprocess.check_output([sys.executable, '-m', 'ensurepip', '--upgrade']).decode())
+print(subprocess.check_output([sys.executable, '-m', 'pip', 'install', 'numpy']).decode())
+```
+
+* You may want to restart Fusion if your processer goes to 100%.
+
 ## How to set up ExportThread.py
 ### Autodesk Fuion 360
 <ol>
